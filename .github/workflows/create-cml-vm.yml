@@ -302,6 +302,7 @@ jobs:
     - name: Write SSH public keys into temporary files and copy them to CML VM
       # if: steps.create-vm.outputs.VM_CREATED == 'true'
       run: |
+        mkdir ~/.ssh
         echo "${{ secrets.RUNNER01_SSH_PUBLIC_KEY }}" > ./runner01_rsa.pub
         sshpass -p ${{ secrets.CML_ADMIN_PASSWORD }} \
                 ssh-copy-id -f -i ./runner01_rsa.pub \
@@ -316,6 +317,7 @@ jobs:
                 -o StrictHostKeyChecking=no \
                 -o UserKnownHostsFile=/dev/null \
                 ${{ env.CML_SSH_USERNAME }}@${{ env.VM_IP_ADDRESS }}
+        rm -rf ~/.ssh
 
 
     - name: Mount supplemental ISO
