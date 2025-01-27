@@ -1,4 +1,4 @@
-name: Create pihole01/02 VMs
+name: Day0 | Create pihole01/02 VMs
 
 on:
   workflow_dispatch:

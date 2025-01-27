@@ -1,4 +1,4 @@
-name: Create cml VM
+name: Day0 | Create cml VM
 
 on:
   workflow_dispatch:

@@ -1,4 +1,4 @@
-name: Update Pihole custom.list
+name: Auto | Update Pihole custom.list
 
 on:
   workflow_dispatch:

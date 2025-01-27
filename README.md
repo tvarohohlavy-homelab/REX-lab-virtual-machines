@@ -13,7 +13,7 @@ LAB VMs build in VMware vCenter
 ### 1. LAB DNS
 > **IMPORTANT: this workflow is to be run once**
 
-Run workflow at [Create pihole01/02 VMs](https://github.com/Rexonix-Infra/lab-virtual-machines/actions/workflows/create-pihole01-02-vms.yml)
+Run workflow at [Day0 | Create pihole01/02 VMs](https://github.com/Rexonix-Infra/lab-virtual-machines/actions/workflows/create-pihole01-02-vms.yml)
 
 Create two Pihole VMs with keepalived between them serving DNS records from: [custom.list.tsv](https://github.com/Rexonix-Infra/lab-virtual-machines/blob/main/pihole/etc/pihole/custom.list.tsv)
 
@@ -22,13 +22,13 @@ Subsequent editing of the TSV file will sync it on both VMs with the version in 
 ### 2. Jumphost
 > **IMPORTANT: this workflow is to be run once**
 
-Run workflow at [Create jumphost01 VM](https://github.com/Rexonix-Infra/lab-virtual-machines/actions/workflows/create-jumphost01-vm.yml)
+Run workflow at [Day0 | Create jumphost01 VM](https://github.com/Rexonix-Infra/lab-virtual-machines/actions/workflows/create-jumphost01-vm.yml)
 
 Creates jumphost VM using above DNS
 
 ### 9. Cisco Modelling LABs
 > **IMPORTANT: this workflow is to be run once**
 
-Run workflow at [Create cml VM](https://github.com/Rexonix-Infra/lab-virtual-machines/actions/workflows/create-cml-vm.yml)
+Run workflow at [Day0 | Create cml VM](https://github.com/Rexonix-Infra/lab-virtual-machines/actions/workflows/create-cml-vm.yml)
 
 Create Cisco CML VM fully preconfigured and with registered license

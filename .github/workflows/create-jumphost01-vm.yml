@@ -1,4 +1,4 @@
-name: Create jumphost01 VM
+name: Day0 | Create jumphost01 VM
 
 on:
   workflow_dispatch:
