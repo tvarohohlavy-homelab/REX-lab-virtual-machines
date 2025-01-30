@@ -16,7 +16,7 @@ on:
 
 env:
   # VM_NAME: <defined via matrix strategy for each job>
-  VM_FOLDER: /INFRA
+  VM_FOLDER: ${{ vars.VCENTER_VM_INFRA_FOLDER }}
   # VM_IP_ADDRESS: <defined via matrix strategy for each job>
 
 jobs:
