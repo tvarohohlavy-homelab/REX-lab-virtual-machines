@@ -11,7 +11,7 @@ on:
 
 jobs:
   install-pihole:
-    runs-on: [self-hosted, linux, initial]
+    runs-on: [self-hosted, linux, initial, rexonix-infra]
     strategy:
       matrix:
         include:

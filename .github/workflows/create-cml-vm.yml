@@ -22,7 +22,7 @@ env:
 
 jobs:
   setup-prerequisites:
-    runs-on: [self-hosted, linux, initial]
+    runs-on: [self-hosted, linux, initial, rexonix-infra]
     steps:
     - name: Install sshpass
       run: |
@@ -75,7 +75,7 @@ jobs:
 
   create-cml-vm:
     needs: setup-prerequisites
-    runs-on: [self-hosted, linux, initial]
+    runs-on: [self-hosted, linux, initial, rexonix-infra]
     steps:
     - uses: Anush008/clean-after-action@v4.2.0
     - uses: actions/checkout@v4

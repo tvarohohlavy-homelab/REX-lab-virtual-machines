@@ -22,7 +22,7 @@ env:
 jobs:
   create-opentofu-providers-mirror:
     if: ${{ inputs.createMirror }}
-    runs-on: [self-hosted, linux, initial]
+    runs-on: [self-hosted, linux, initial, rexonix-infra]
     container: ghcr.io/opentofu/opentofu:1.9.0
     steps:
       - uses: Anush008/clean-after-action@v4.2.0
@@ -49,7 +49,7 @@ jobs:
   create-vm-from-template:
     if: ${{ !inputs.skipTerraform && !failure() && !cancelled() }}
     needs: [create-opentofu-providers-mirror]
-    runs-on: [self-hosted, linux, initial]
+    runs-on: [self-hosted, linux, initial, rexonix-infra]
     container: ghcr.io/opentofu/opentofu:1.9.0
     strategy:
       max-parallel: 1
@@ -131,7 +131,7 @@ jobs:
   install-pihole:
     if: ${{ !failure() && !cancelled() }}
     needs: [create-vm-from-template]
-    runs-on: [self-hosted, linux, initial]
+    runs-on: [self-hosted, linux, initial, rexonix-infra]
     strategy:
       matrix:
         include:

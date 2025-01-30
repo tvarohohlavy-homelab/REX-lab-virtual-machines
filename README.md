@@ -4,7 +4,7 @@ LAB VMs build in VMware vCenter
 
 ## Prerequisites:
 - VMware vSphere Host with vCenter managing it
-- Self-hosted Github Runner tagged [self-hosted, linux, initial] allowed for this repository
+- Self-hosted Github Runner tagged [self-hosted, linux, initial, rexonix-infra] allowed for this repository
 - All necessary variables and secrets set at repository or organization level
 - VM templates pre-created with workflows from [LAB-PACKER repo](https://github.com/Rexonix-Infra/lab-packer)
 - Necessary files available in vCenter Content Library
