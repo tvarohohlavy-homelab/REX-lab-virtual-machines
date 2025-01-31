@@ -69,7 +69,7 @@ jobs:
       - name: Set variables in main.tf
         uses: tvarohohlavy/inplace-envsubst-action@v1.0.0
         env:
-          STATEFILE_PATH:  "${{ matrix.vm_name }}/terraform.tfstate"
+          STATEFILE_PATH:  "${{ matrix.vm_name }}-terraform.tfstate"
           TF_ENCRYPTION_KEY: ${{ secrets.TF_ENCRYPTION_PASSWORD }}
         with:
           variables: |
@@ -77,6 +77,12 @@ jobs:
             $TF_ENCRYPTION_KEY
           files: |
             terraform/main.tf
+
+      - name: Save statefile from secret to file
+        env:
+          STATEFILE: ${{ secrets[format('{0}_TF_STATEFILE', matrix.vm_name)] }}
+        if: env.STATEFILE && env.STATEFILE != 'empty'
+        run: echo '${{ env.STATEFILE }}' > terraform/${{ matrix.vm_name }}-terraform.tfstate
 
       - name: Create VM from template with OpenTofu
         id: create-vm
@@ -118,15 +124,20 @@ jobs:
           TF_VAR_vmPassword: ${{ secrets.VM_PASSWORD }}
           TF_VAR_authorizedSshKeys: "[\"${{ secrets.JT_SSH_PUBLIC_KEY }}\",\"${{ secrets.RUNNER01_SSH_PUBLIC_KEY }}\"]"
 
-      - name: Workaround for git
+      - name: Read statefile
+        id: read-statefile
+        run: |
+          statefile=$(cat terraform/${{ matrix.vm_name }}-terraform.tfstate)
+          echo "::add-mask::$statefile"
+          echo "statefile=$statefile" >> $GITHUB_OUTPUT
+  
+      - name: Save statefile into secret if changed
         if: ${{ ! contains(steps.create-vm.outputs.TFPLAN, 'found no differences, so no changes are needed') }}  
-        run: git config --global --add safe.directory '*'
-
-      - uses: stefanzweifel/git-auto-commit-action@v5
-        if: ${{ ! contains(steps.create-vm.outputs.TFPLAN, 'found no differences, so no changes are needed') }}
+        uses: action-pack/set-secret@v1
         with:
-          file_pattern: 'terraform/${{ matrix.vm_name }}/terraform.tfstate'
-          commit_message: Automatic Changes | Statefile for ${{ matrix.vm_name }}
+          name: '${{ matrix.vm_name }}_TF_STATEFILE'
+          value: ${{ steps.read-statefile.outputs.statefile }}
+          token: ${{ secrets.REPO_SECRETS_PAT }}
 
   install-pihole:
     if: ${{ !failure() && !cancelled() }}
