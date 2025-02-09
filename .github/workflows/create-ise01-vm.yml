@@ -58,7 +58,7 @@ jobs:
                                 /${{ env.CONTENT_LIBRARY_NAME }}/${{ env.CONTENT_LIBRARY_ITEM_NAME }} \
                                 ${{ env.VM_NAME }}
             #
-            ISE_DAY0_CONFIG="$(cat <<-EOF
+            base64 <<-EOF > vmdata.config
               hostname=${{ env.VM_NAME }}
               ipv4_addr=${{ env.VM_IP_ADDRESS }}
               ipv4_mask=${{ vars.VCENTER_DEFAULT_PORT_GROUP_NETMASK }}
@@ -80,8 +80,6 @@ jobs:
               pxGrid=yes
               pxgrid_cloud=no
             EOF
-            )"
-            echo "$ISE_DAY0_CONFIG" | base64 | tr -d '\n' > vmdata.config
             govc vm.change -vm ${{ env.VM_NAME }} -f guestinfo.ise.ztp="./vmdata.config"
             #
             govc vm.network.change -vm ${{ env.VM_NAME }} -net ${{ vars.VCENTER_DEFAULT_PORT_GROUP }} *
