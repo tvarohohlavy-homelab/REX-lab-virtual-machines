@@ -53,10 +53,10 @@ jobs:
       run: |
         if [[ ! -n "$(govc vm.info ${{ env.VM_NAME }})" ]]
         then
-            govc library.deploy ${{ env.CONTENT_LIBRARY_NAME }}/${{ env.CONTENT_LIBRARY_ITEM_NAME }} \
-                                ${{ env.VM_NAME }} \
-                                -folder="${{ env.VM_FOLDER }}" \
-                                -ds="${{ vars.VCENTER_DATASTORE_NAME }}"
+            govc library.deploy -folder="${{ env.VM_FOLDER }}" \
+                                -ds="${{ vars.VCENTER_DATASTORE_NAME }}" \
+                                /${{ env.CONTENT_LIBRARY_NAME }}/${{ env.CONTENT_LIBRARY_ITEM_NAME }} \
+                                ${{ env.VM_NAME }}
             echo "VM_CREATED=true" >> $GITHUB_ENV
         else
             echo "VM_CREATED=false" >> $GITHUB_ENV
