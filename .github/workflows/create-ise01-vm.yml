@@ -73,6 +73,9 @@ jobs:
           pxGrid=yes
           pxgrid_cloud=no
         EOF
+        ls
+        cat vmdata.config
+        #
         if [[ ! -n "$(govc vm.info ${{ env.VM_NAME }})" ]]
         then
             govc library.deploy -folder="${{ env.VM_FOLDER }}" \
@@ -80,7 +83,7 @@ jobs:
                                 /${{ env.CONTENT_LIBRARY_NAME }}/${{ env.CONTENT_LIBRARY_ITEM_NAME }} \
                                 ${{ env.VM_NAME }}
             #
-            govc vm.change -vm ${{ env.VM_NAME }} -f guestinfo.ise.ztp="./vmdata.config"
+            govc vm.change -vm ${{ env.VM_NAME }} -f guestinfo.ise.ztp="$(pwd)/vmdata.config"
             #
             govc vm.network.change -vm ${{ env.VM_NAME }} -net ${{ vars.VCENTER_DEFAULT_PORT_GROUP }} *
             #
