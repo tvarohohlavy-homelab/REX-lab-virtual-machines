@@ -4,14 +4,23 @@ on:
   workflow_dispatch:
 
 env:
+  GOVC_INSECURE: ${{ secrets.VCENTER_INSECURE_CONNECTION }}
+  GOVC_URL: ${{ secrets.VCENTER_HOST }}
+  GOVC_USERNAME: ${{ secrets.VCENTER_USER }}
+  GOVC_PASSWORD: ${{ secrets.VCENTER_PASS }}
   VM_NAME: ise01
   VM_FOLDER: NET
   VM_IP_ADDRESS: ${{ vars.VM_ISE01_IP }}
-  CONTENT_LIBRARY_NAME: NET
-  CONTENT_LIBRARY_ITEM_NAME: Cisco-vISE-300-3.4.0.608
-  NTP_TIMEZONE: Europe/Prague
-  NTP_SERVER_1: tik.cesnet.cz
-  NTP_SERVER_2: tak.cesnet.cz
+  VM_IP_CIDR: ${{ vars.VCENTER_DEFAULT_PORT_GROUP_NETMASK }}
+  VM_NTP_TIMEZONE: ${{ vars.NTP_TIMEZONE }}
+  VM_NTP_SERVER_PRIMARY: ${{ vars.NTP_SERVER_IPV4_PUBLIC_PRIMARY }}
+  VM_NTP_SERVER_SECONDARY: ${{ vars.NTP_SERVER_IPV4_PUBLIC_SECONDARY }}
+  VM_DATACENTER: ${{ vars.VCENTER_DATACENTER_NAME }}
+  VM_DATASTORE: ${{ vars.VCENTER_DATASTORE_NAME }}
+  VM_PORT_GROUP: ${{ vars.VCENTER_DEFAULT_PORT_GROUP }}
+  CONTENT_LIBRARY: NET
+  OVA_IMAGE: Cisco-vISE-300-3.4.0.608.ova
+  PATCH_FILE: ise-patchbundle-3.4.0.608-Patch1-24121602.SPA.x86_64.tar.gz
 
 jobs:
   setup-prerequisites:
@@ -29,22 +38,11 @@ jobs:
         govc version
 
     - name: Test vCenter Connectivity
-      env:
-        GOVC_INSECURE: ${{ secrets.VCENTER_INSECURE_CONNECTION }}
-        GOVC_URL: ${{ secrets.VCENTER_HOST }}
-        GOVC_USERNAME: ${{ secrets.VCENTER_USER }}
-        GOVC_PASSWORD: ${{ secrets.VCENTER_PASS }}
-      run: |
-        govc about
+      run: govc about
 
   create-ise01-vm:
     needs: setup-prerequisites
     runs-on: [self-hosted, linux, initial, rexonix-infra]
-    env:
-      GOVC_INSECURE: ${{ secrets.VCENTER_INSECURE_CONNECTION }}
-      GOVC_URL: ${{ secrets.VCENTER_HOST }}
-      GOVC_USERNAME: ${{ secrets.VCENTER_USER }}
-      GOVC_PASSWORD: ${{ secrets.VCENTER_PASS }}
     steps:
     - uses: Anush008/clean-after-action@v4.2.0
 
@@ -54,10 +52,94 @@ jobs:
       with:
         repository: Rexonix-Connect/cisco-ise-ztp-on-vmware
         path: cisco-ise-ztp-automation-on-vmware
-      
+
+    - name: Convert CIDR to netmask
+      run: |
+        cidr2mask(){
+          OCTETS=$(eval echo '$(((1<<32)-1<<32-$1>>'{3..0}'*8&255))')
+          echo "${OCTETS// /.}"
+        }
+        VM_IP_NETMASK=$(cidr2mask ${{ env.VM_IP_CIDR }})
+        echo "VM_IP_NETMASK=${VM_IP_NETMASK}" >> $GITHUB_ENV
+
+    - name: Customize ZTP config
+      uses: tvarohohlavy/inplace-envsubst-action@v1.0.0
+      env:
+        VM_NAME: ${{ env.VM_NAME }}
+        VM_IP_ADDRESS: ${{ env.VM_IP_ADDRESS }}
+        VM_IP_NETMASK: ${{ env.VM_IP_NETMASK }}
+        VM_IP_GATEWAY: ${{ vars.VCENTER_DEFAULT_PORT_GROUP_GATEWAY }}
+        VM_DOMAIN_NAME: ${{ vars.VM_DOMAIN_NAME_LAB }}
+        VM_DNS_SERVER_PRIMARY: ${{ vars.DNS_SERVER_IPV4_LAB_VIP }}
+        VM_NTP_SERVER_PRIMARY: ${{ vars.NTP_SERVER_IPV4_PUBLIC_PRIMARY }}
+        VM_NTP_SERVER_SECONDARY: ${{ vars.NTP_SERVER_IPV4_PUBLIC_SECONDARY }}
+        VM_NTP_TIMEZONE: ${{ vars.NTP_TIMEZONE }}
+        ISE_ADMIN_USERNAME: ${{ secrets.CISCO_ISE_ADMIN_USERNAME }}
+        ISE_ADMIN_PASSWORD: ${{ secrets.CISCO_ISE_ADMIN_PASSWORD }}
+        ISE_SSH_ENABLE: true
+        ISE_ERS_ENABLE: true
+        ISE_OPENAPI_ENABLE: true
+        ISE_PXGRID_ENABLE: true
+        ISE_PXGRID_CLOUD_ENABLE: false
+        ISE_PATCH_REPO_NAME: TEMP
+        ISE_PATCH_REPO_PROTOCOL: http
+        ISE_PATCH_REPO_SERVER_NAME: ${{ vars.VM_RUNNER01_IP }}
+        ISE_PATCH_REPO_PATH: /
+        ISE_PATCH_FILE: ${{ env.PATCH_FILE }}
+      with:
+        variables: |
+          $VM_NAME
+          $VM_IP_ADDRESS
+          $VM_IP_NETMASK
+          $VM_IP_GATEWAY
+          $VM_DOMAIN_NAME
+          $VM_DNS_SERVER_PRIMARY
+          $VM_NTP_SERVER_PRIMARY
+          $VM_NTP_SERVER_SECONDARY
+          $VM_NTP_TIMEZONE
+          $ISE_ADMIN_USERNAME
+          $ISE_ADMIN_PASSWORD
+          $ISE_SSH_ENABLE
+          $ISE_ERS_ENABLE
+          $ISE_OPENAPI_ENABLE
+          $ISE_PXGRID_ENABLE
+          $ISE_PXGRID_CLOUD_ENABLE
+          $ISE_PATCH_REPO_NAME
+          $ISE_PATCH_REPO_PROTOCOL
+          $ISE_PATCH_REPO_SERVER_NAME
+          $ISE_PATCH_REPO_PATH
+          $ISE_PATCH_FILE
+        files: |
+          ise01/ise-ztp.conf
+        
     - name: Create VM from OVA Template
       id: create-vm
       run: |
         cp cisco-ise-ztp-automation-on-vmware/* .
+        cp ise01/ise-ztp.conf .
         chmod +x create-vm.sh
         ./create-vm.sh
+
+    - name: Serve patch file over HTTP and wait until its downloaded
+      run: |
+        wget https://github.com/simon-budig/woof/raw/refs/heads/master/woof
+        chmod +x woof
+        printf "Waiting for the patch file to be downloaded..."
+        sudo ./woof -p 80 /data/${{ env.PATCH_FILE }}
+        printf "Patch file was downloaded."
+
+    - name: Wait for ISE SSH to be ready
+      run: |
+        printf "Waiting for ISE SSH to be ready..."
+        while ! nc -z ${{ env.VM_IP_ADDRESS }} 22; do
+          sleep 1
+        done
+        printf "ISE SSH is ready."
+
+    - name: Wait for ISE HTTP to be ready
+      run: |
+        printf "Waiting for ISE HTTP to be ready..."
+        while ! nc -z ${{ env.VM_IP_ADDRESS }} 443; do
+          sleep 1
+        done
+        printf "ISE HTTP is ready."
