@@ -120,11 +120,12 @@ jobs:
         chmod +x create-vm.sh
         ./create-vm.sh
 
-    - name: Serve patch file over HTTP and wait until its downloaded
+    - name: Serve patch file over HTTP and wait until it is downloaded
       run: |
         wget https://github.com/simon-budig/woof/raw/refs/heads/master/woof
         chmod +x woof
         printf "Waiting for the patch file to be downloaded..."
+        # NOTE: patch file alredy exists on the runner
         sudo ./woof -p 80 /data/${{ env.PATCH_FILE }}
         printf "Patch file was downloaded."
 
@@ -143,3 +144,22 @@ jobs:
           sleep 1
         done
         printf "ISE HTTP is ready."
+
+    - name: Get ISE application status
+      run: |
+        sshpass -p ${{ secrets.CISCO_ISE_ADMIN_PASSWORD }} ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+          ${{ secrets.CISCO_ISE_ADMIN_USERNAME }}@${{ env.VM_IP_ADDRESS }} \
+          "show application status ise"
+
+    - name: Get ISE application logs
+      run: |
+        sshpass -p ${{ secrets.CISCO_ISE_ADMIN_PASSWORD }} ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+          ${{ secrets.CISCO_ISE_ADMIN_USERNAME }}@${{ env.VM_IP_ADDRESS }} \
+          "show logging application ise-psc.log"
+
+    - name: Wait for ISE Web UI to be ready
+      run: |
+        printf "Waiting for ISE Web UI to be ready..."
+        while ! curl -k -s -o /dev/null -w "%{http_code}" https://${{ env.VM_IP_ADDRESS }}:443/admin/login.jsp; do
+          sleep 1
+        done
