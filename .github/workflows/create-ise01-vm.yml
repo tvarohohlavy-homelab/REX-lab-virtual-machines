@@ -196,6 +196,7 @@ jobs:
     - name: Reset ISE admin passwords from CLI over SSH
       run: |
         expect <<EOF
+        set timeout 120
         spawn sshpass -p ${{ secrets.TEMP_PASSWORD }} \
                       ssh -o StrictHostKeyChecking=no \
                           -o UserKnownHostsFile=/dev/null \
@@ -209,8 +210,24 @@ jobs:
         expect "Confirm new password:"
         send "${{ secrets.CISCO_ISE_ADMIN_PASSWORD }}\r"
         expect "${{ env.VM_NAME }}/${{ secrets.CISCO_ISE_ADMIN_USERNAME }}#"
+        #
         send "application reset-passwd ise admin\r"
-        expect "Enter new password:"
+        expect {
+          "Enter new password:" {
+            # -> ISE is ready; proceed
+          }
+          "Application needs to be running in order to reset password" {
+            # -> Wait a bit, then retry
+            sleep 10
+            send "application reset-passwd ise admin\r"
+            exp_continue
+          }
+          timeout {
+            # -> If we keep timing out, handle error or break
+            puts "Timeout waiting for application password reset prompt."
+            exit 1
+          }
+        }
         send "${{ secrets.CISCO_ISE_ADMIN_PASSWORD }}\r"
         expect "Confirm new password:"
         send "${{ secrets.CISCO_ISE_ADMIN_PASSWORD }}\r"
@@ -223,6 +240,7 @@ jobs:
     - name: Get ISE information from CLI over SSH
       run: |
         expect <<EOF
+        set timeout 120
         spawn sshpass -p ${{ secrets.CISCO_ISE_ADMIN_PASSWORD }} \
                       ssh -o StrictHostKeyChecking=no \
                           -o UserKnownHostsFile=/dev/null \
