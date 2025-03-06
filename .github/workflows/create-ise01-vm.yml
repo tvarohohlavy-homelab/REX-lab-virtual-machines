@@ -37,14 +37,49 @@ jobs:
         fi
         govc version
 
-    - name: Test vCenter Connectivity
-      run: govc about
+    - name: Install expect
+      run: |
+        if ! command -v expect &> /dev/null
+        then
+          sudo apt-get update
+          sudo apt-get install -y expect
+        fi
+        expect -v
+
+    - name: Install wget
+      run: |
+        if ! command -v wget &> /dev/null
+        then
+          sudo apt-get update
+          sudo apt-get install -y wget
+        fi
+
+    - name: Install google-chrome
+      run: |
+        if ! command -v google-chrome &> /dev/null
+        then
+          wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo apt install -y ./google-chrome-stable_current_amd64.deb
+          rm google-chrome-stable_current_amd64.deb
+        fi
+        google-chrome --version
+
+    - name: Install python3.10-venv
+      run: |
+        if ! apt list --installed 2>/dev/null | grep -q "python3.10-venv"; then
+          sudo apt-get update
+          sudo apt-get install -y python3.10-venv
+        fi
+        python3.10 -m venv --help
 
   create-ise01-vm:
     needs: setup-prerequisites
     runs-on: [self-hosted, linux, initial, rexonix-infra]
     steps:
     - uses: Anush008/clean-after-action@v4.2.0
+
+    - name: Test vCenter Connectivity
+      run: govc about
 
     - uses: actions/checkout@v4
 
@@ -75,7 +110,7 @@ jobs:
         VM_NTP_SERVER_SECONDARY: ${{ vars.NTP_SERVER_IPV4_PUBLIC_SECONDARY }}
         VM_NTP_TIMEZONE: ${{ vars.NTP_TIMEZONE }}
         ISE_ADMIN_USERNAME: ${{ secrets.CISCO_ISE_ADMIN_USERNAME }}
-        ISE_ADMIN_PASSWORD: ${{ secrets.CISCO_ISE_ADMIN_PASSWORD }}
+        ISE_ADMIN_PASSWORD: ${{ secrets.TEMP_PASSWORD }}
         ISE_SSH_ENABLE: true
         ISE_ERS_ENABLE: true
         ISE_OPENAPI_ENABLE: true
@@ -129,6 +164,12 @@ jobs:
         sudo ./woof -p 80 /data/${{ env.PATCH_FILE }}
         printf "Patch file was downloaded."
 
+  initial-ise01-config:
+    needs: create-ise01-vm
+    runs-on: [self-hosted, linux, initial, rexonix-infra]
+    steps:
+    - uses: Anush008/clean-after-action@v4.2.0
+
     - name: Wait for ISE SSH to be ready
       run: |
         printf "Waiting for ISE SSH to be ready..."
@@ -145,21 +186,82 @@ jobs:
         done
         printf "ISE HTTP is ready."
 
-    - name: Get ISE application status
-      run: |
-        sshpass -p ${{ secrets.CISCO_ISE_ADMIN_PASSWORD }} ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-          ${{ secrets.CISCO_ISE_ADMIN_USERNAME }}@${{ env.VM_IP_ADDRESS }} \
-          "show application status ise"
-
-    - name: Get ISE application logs
-      run: |
-        sshpass -p ${{ secrets.CISCO_ISE_ADMIN_PASSWORD }} ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-          ${{ secrets.CISCO_ISE_ADMIN_USERNAME }}@${{ env.VM_IP_ADDRESS }} \
-          "show logging application ise-psc.log"
-
     - name: Wait for ISE Web UI to be ready
       run: |
         printf "Waiting for ISE Web UI to be ready..."
         while ! curl -k -s -o /dev/null -w "%{http_code}" https://${{ env.VM_IP_ADDRESS }}:443/admin/login.jsp; do
           sleep 1
         done
+
+    - name: Reset ISE admin passwords from CLI over SSH
+      run: |
+        expect <<EOF
+        spawn sshpass -p ${{ secrets.TEMP_PASSWORD }} \
+                      ssh -o StrictHostKeyChecking=no \
+                          -o UserKnownHostsFile=/dev/null \
+                          ${{ secrets.CISCO_ISE_ADMIN_USERNAME }}@${{ env.VM_IP_ADDRESS }}
+        expect "${{ env.VM_NAME }}/${{ secrets.CISCO_ISE_ADMIN_USERNAME }}#"
+        send "password\r"
+        expect "Enter old password:"
+        send "${{ secrets.TEMP_PASSWORD }}\r"
+        expect "Enter new password:"
+        send "${{ secrets.CISCO_ISE_ADMIN_PASSWORD }}\r"
+        expect "Confirm new password:"
+        send "${{ secrets.CISCO_ISE_ADMIN_PASSWORD }}\r"
+        expect "${{ env.VM_NAME }}/${{ secrets.CISCO_ISE_ADMIN_USERNAME }}#"
+        send "application reset-passwd ise admin\r"
+        expect "Enter new password:"
+        send "${{ secrets.CISCO_ISE_ADMIN_PASSWORD }}\r"
+        expect "Confirm new password:"
+        send "${{ secrets.CISCO_ISE_ADMIN_PASSWORD }}\r"
+        expect "${{ env.VM_NAME }}/${{ secrets.CISCO_ISE_ADMIN_USERNAME }}#"
+        send "exit\r"
+        expect "closed."
+        interact
+        EOF
+
+    - name: Get ISE information from CLI over SSH
+      run: |
+        expect <<EOF
+        spawn sshpass -p ${{ secrets.CISCO_ISE_ADMIN_PASSWORD }} \
+                      ssh -o StrictHostKeyChecking=no \
+                          -o UserKnownHostsFile=/dev/null \
+                          ${{ secrets.CISCO_ISE_ADMIN_USERNAME }}@${{ env.VM_IP_ADDRESS }}
+        expect "${{ env.VM_NAME }}/${{ secrets.CISCO_ISE_ADMIN_USERNAME }}#"
+        send "screen-length 0\r"
+        expect "${{ env.VM_NAME }}/${{ secrets.CISCO_ISE_ADMIN_USERNAME }}#"
+        send "screen-width 0\r"
+        expect "${{ env.VM_NAME }}/${{ secrets.CISCO_ISE_ADMIN_USERNAME }}#"
+        send "show uptime\r"
+        expect "${{ env.VM_NAME }}/${{ secrets.CISCO_ISE_ADMIN_USERNAME }}#"
+        send "show version\r"
+        expect "${{ env.VM_NAME }}/${{ secrets.CISCO_ISE_ADMIN_USERNAME }}#"
+        send "show application status ise\r"
+        expect "${{ env.VM_NAME }}/${{ secrets.CISCO_ISE_ADMIN_USERNAME }}#"
+        send "show logging application ise-psc.log\r"
+        expect "${{ env.VM_NAME }}/${{ secrets.CISCO_ISE_ADMIN_USERNAME }}#"
+        send "show running-config\r"
+        expect "${{ env.VM_NAME }}/${{ secrets.CISCO_ISE_ADMIN_USERNAME }}#"
+        send "exit\r"
+        expect "closed."
+        interact
+        EOF
+    
+    # - name: Create Python Virtual Environment for Selenium
+    #   run: |
+    #     python3.10 -m venv venv
+    #     source venv/bin/activate
+    #     pip install selenium==4.29.0 \
+    #                 webdriver-manager==4.0.2
+
+    # - name: Configure ISE via Selenium
+    #   env:
+    #     ISE_HOST: ${{ env.VM_IP_ADDRESS }}
+    #     ISE_USERNAME: ${{ secrets.CISCO_ISE_ADMIN_USERNAME }}
+    #     ISE_OLD_PASSWORD: ${{ secrets.CISCO_ISE_ADMIN_PASSWORD }}
+    #     ISE_NEW_PASSWORD: ${{ secrets.CISCO_ISE_ADMIN_PASSWORD }}
+    #   run: |
+    #     source venv/bin/activate
+    #     python3.10 ise01/selenium-ise-initial-config.py
+        
+    
