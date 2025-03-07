@@ -170,6 +170,8 @@ jobs:
     steps:
     - uses: Anush008/clean-after-action@v4.2.0
 
+    - uses: actions/checkout@v4
+
     - name: Wait for ISE SSH to be ready
       run: |
         printf "Waiting for ISE SSH to be ready..."
@@ -178,22 +180,7 @@ jobs:
         done
         printf "ISE SSH is ready."
 
-    - name: Wait for ISE HTTP to be ready
-      run: |
-        printf "Waiting for ISE HTTP to be ready..."
-        while ! nc -z ${{ env.VM_IP_ADDRESS }} 443; do
-          sleep 1
-        done
-        printf "ISE HTTP is ready."
-
-    - name: Wait for ISE Web UI to be ready
-      run: |
-        printf "Waiting for ISE Web UI to be ready..."
-        while ! curl -k -s -o /dev/null -w "%{http_code}" https://${{ env.VM_IP_ADDRESS }}:443/admin/login.jsp; do
-          sleep 1
-        done
-
-    - name: Reset ISE admin passwords from CLI over SSH
+    - name: Reset ISE CLI admin password
       run: |
         expect <<EOF
         set timeout 120
@@ -210,32 +197,32 @@ jobs:
         expect "Confirm new password:"
         send "${{ secrets.CISCO_ISE_ADMIN_PASSWORD }}\r"
         expect "${{ env.VM_NAME }}/${{ secrets.CISCO_ISE_ADMIN_USERNAME }}#"
-        #
-        send "application reset-passwd ise admin\r"
-        expect {
-          "Enter new password:" {
-            # -> ISE is ready; proceed
-          }
-          "Application needs to be running in order to reset password" {
-            # -> Wait a bit, then retry
-            sleep 10
-            send "application reset-passwd ise admin\r"
-            exp_continue
-          }
-          timeout {
-            # -> If we keep timing out, handle error or break
-            puts "Timeout waiting for application password reset prompt."
-            exit 1
-          }
-        }
-        send "${{ secrets.CISCO_ISE_ADMIN_PASSWORD }}\r"
-        expect "Confirm new password:"
-        send "${{ secrets.CISCO_ISE_ADMIN_PASSWORD }}\r"
-        expect "${{ env.VM_NAME }}/${{ secrets.CISCO_ISE_ADMIN_USERNAME }}#"
         send "exit\r"
         expect "closed."
         interact
         EOF
+
+    - name: Wait for ISE to start listening on HTTP(S)
+      run: |
+        printf "Waiting for ISE HTTP to be ready..."
+        while ! nc -z ${{ env.VM_IP_ADDRESS }} 443; do
+          sleep 1
+        done
+        printf "ISE HTTP(S) is ready."
+
+    - name: Wait for ISE Web UI to be ready
+      run: |
+        URL="https://${{ env.VM_IP_ADDRESS }}:443/admin/login.jsp"
+        echo "Waiting for ISE Web UI to return 200 OK..."
+        while true; do
+          status=$(curl -k -s -o /dev/null -w '%{http_code}' "$URL")
+          echo "Check returned status: $status"
+          if [ "$status" = "200" ]; then
+            echo "Received HTTP 200! Cisco ISE UI appears to be up."
+            break
+          fi
+          sleep 2
+        done
 
     - name: Get ISE information from CLI over SSH
       run: |
@@ -264,22 +251,57 @@ jobs:
         expect "closed."
         interact
         EOF
-    
-    # - name: Create Python Virtual Environment for Selenium
-    #   run: |
-    #     python3.10 -m venv venv
-    #     source venv/bin/activate
-    #     pip install selenium==4.29.0 \
-    #                 webdriver-manager==4.0.2
 
-    # - name: Configure ISE via Selenium
-    #   env:
-    #     ISE_HOST: ${{ env.VM_IP_ADDRESS }}
-    #     ISE_USERNAME: ${{ secrets.CISCO_ISE_ADMIN_USERNAME }}
-    #     ISE_OLD_PASSWORD: ${{ secrets.CISCO_ISE_ADMIN_PASSWORD }}
-    #     ISE_NEW_PASSWORD: ${{ secrets.CISCO_ISE_ADMIN_PASSWORD }}
+    # NOTE: This does not work to avoid another enforced password change when logging in via GUI
+    # - name: Reset ISE GUI admin password
     #   run: |
-    #     source venv/bin/activate
-    #     python3.10 ise01/selenium-ise-initial-config.py
+    #     expect <<EOF
+    #     set timeout 120
+    #     spawn sshpass -p ${{ secrets.CISCO_ISE_ADMIN_PASSWORD }} \
+    #                   ssh -o StrictHostKeyChecking=no \
+    #                       -o UserKnownHostsFile=/dev/null \
+    #                       ${{ secrets.CISCO_ISE_ADMIN_USERNAME }}@${{ env.VM_IP_ADDRESS }}
+    #     expect "${{ env.VM_NAME }}/${{ secrets.CISCO_ISE_ADMIN_USERNAME }}#"
+    #     send "application reset-passwd ise admin\r"
+    #     expect {
+    #       "Enter new password:" {
+    #         # -> ISE is ready; proceed
+    #       }
+    #       "Application needs to be running in order to reset password" {
+    #         # -> Wait a bit, then retry
+    #         sleep 10
+    #         send "application reset-passwd ise admin\r"
+    #         exp_continue
+    #       }
+    #       timeout {
+    #         # -> If we keep timing out, handle error or break
+    #         puts "Timeout waiting for application password reset prompt."
+    #         exit 1
+    #       }
+    #     }
+    #     send "${{ secrets.CISCO_ISE_ADMIN_PASSWORD }}\r"
+    #     expect "Confirm new password:"
+    #     send "${{ secrets.CISCO_ISE_ADMIN_PASSWORD }}\r"
+    #     expect "${{ env.VM_NAME }}/${{ secrets.CISCO_ISE_ADMIN_USERNAME }}#"
+    #     send "exit\r"
+    #     expect "closed."
+    #     interact
+    #     EOF
+
+    - name: Create Python Virtual Environment for Selenium
+      run: |
+        python3.10 -m venv venv
+        source venv/bin/activate
+        pip install selenium==4.29.0 \
+                    webdriver-manager==4.0.2
+
+    - name: Reset ISE Admin UI password via Selenium
+      env:
+        ISE_HOST: ${{ env.VM_IP_ADDRESS }}
+        ISE_USERNAME: ${{ secrets.CISCO_ISE_ADMIN_USERNAME }}
+        ISE_OLD_PASSWORD: ${{ secrets.TEMP_PASSWORD }}
+        ISE_NEW_PASSWORD: ${{ secrets.CISCO_ISE_ADMIN_PASSWORD }}
+      run: |
+        source venv/bin/activate
+        python3.10 ise01/selenium-ise-reset-ui-admin-password.py
         
-    
