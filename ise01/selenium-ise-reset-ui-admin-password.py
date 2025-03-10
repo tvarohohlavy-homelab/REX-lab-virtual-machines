@@ -31,7 +31,7 @@ def getDriver():
     )
     return driver
 
-def iseLogin(driver, username, password, check_mode=False):
+def iseLogin(driver, username=None, password=None, check_mode=False):
     try:
         loginPageReady = WebDriverWait(driver, 30).until(
             expected_conditions.all_of(
