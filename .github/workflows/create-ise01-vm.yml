@@ -288,6 +288,9 @@ jobs:
     #     interact
     #     EOF
 
+    - name: Wait for ISE to fully get ready
+      run: sleep 600
+
     - name: Create Python Virtual Environment for Selenium
       run: |
         python3.10 -m venv venv
