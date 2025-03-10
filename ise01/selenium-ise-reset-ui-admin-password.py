@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from selenium import webdriver
+from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
@@ -53,6 +54,10 @@ def main():
     username = args.username
     old_password = args.old_password
     new_password = args.new_password
+
+    if not host or not username or not old_password or not new_password:
+        parser.print_help()
+        exit(1)
     
     baseUrl = f"https://{host}/admin/login.jsp"
     driver = getDriver()
@@ -63,13 +68,19 @@ def main():
         # Login
         iseLogin(driver, username, old_password)
         # Initial enforced password change
-        passwordResetURLCheck = WebDriverWait(driver, 10).until(
-            expected_conditions.url_contains("resetPassword")
-        )
+        try:
+            passwordResetURLCheck = WebDriverWait(driver, 10).until(
+                expected_conditions.url_contains("resetPassword")
+            )
+        except TimeoutException:
+            passwordResetURLCheck = False
         if passwordResetURLCheck:
             # wait for new password field just to be sure
-            WebDriverWait(driver, 10).until(
+            WebDriverWait(driver, 20).until(
                 expected_conditions.presence_of_element_located((By.ID, "PWD"))
+            )
+            WebDriverWait(driver, 20).until(
+                expected_conditions.element_to_be_clickable((By.ID, "PWD"))
             )
             # enter and save new password
             newPasswordField = driver.find_element(By.ID, "PWD")
