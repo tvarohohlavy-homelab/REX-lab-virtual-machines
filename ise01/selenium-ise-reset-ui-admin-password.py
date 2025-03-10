@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from selenium import webdriver
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
@@ -31,7 +31,32 @@ def getDriver():
     )
     return driver
 
-def iseLogin(driver, username, password):
+def iseLogin(driver, username, password, check_mode=False):
+    try:
+        loginPageReady = WebDriverWait(driver, 30).until(
+            expected_conditions.all_of(
+                expected_conditions.url_contains("login.jsp"),
+                expected_conditions.presence_of_element_located((By.NAME, "username")),
+                expected_conditions.element_to_be_clickable((By.NAME, "username")), 
+                expected_conditions.presence_of_element_located((By.NAME, "password")),
+                expected_conditions.element_to_be_clickable((By.NAME, "password")),
+                expected_conditions.presence_of_element_located((By.ID, "loginPage_loginSubmit"))
+            )
+        )
+    except TimeoutException:
+        loginPageReady = False
+    except NoSuchElementException:
+        loginPageReady = False
+
+    if check_mode:
+        return loginPageReady
+
+    if not loginPageReady:
+        raise Exception(f"Failed to load ISE login page at {datetime.now()}")
+
+    if not username or not password:
+        raise Exception(f"Username and password are required to login to ISE at {datetime.now()}")
+
     username_field = driver.find_element(By.NAME, "username")
     username_field.click()
     username_field.send_keys(username)
@@ -69,38 +94,39 @@ def main():
         iseLogin(driver, username, old_password)
         # Initial enforced password change
         try:
-            passwordResetURLCheck = WebDriverWait(driver, 10).until(
-                expected_conditions.url_contains("resetPassword")
+            passwordResetURLCheck = WebDriverWait(driver, 30).until(
+                expected_conditions.all_of(
+                    expected_conditions.url_contains("resetPassword"),
+                    expected_conditions.presence_of_element_located((By.ID, "PWD")),
+                    expected_conditions.element_to_be_clickable((By.ID, "PWD")),
+                    expected_conditions.presence_of_element_located((By.ID, "confirmPWD")),
+                    expected_conditions.element_to_be_clickable((By.ID, "confirmPWD")),
+                    expected_conditions.presence_of_element_located((By.ID, "rstBtn"))
+                )
             )
         except TimeoutException:
             passwordResetURLCheck = False
-        if passwordResetURLCheck:
-            # wait for new password field just to be sure
-            WebDriverWait(driver, 20).until(
-                expected_conditions.presence_of_element_located((By.ID, "PWD"))
-            )
-            WebDriverWait(driver, 20).until(
-                expected_conditions.element_to_be_clickable((By.ID, "PWD"))
-            )
-            # enter and save new password
-            newPasswordField = driver.find_element(By.ID, "PWD")
-            newPasswordField.click()
-            newPasswordField.send_keys(new_password)
-            confirmPasswordField = driver.find_element(By.ID, "confirmPWD")
-            confirmPasswordField.click()
-            confirmPasswordField.send_keys(new_password)
-            submitButton = driver.find_element(By.ID, "rstBtn")
-            submitButton.click()
-            # wait for initial login page submit button
-            initialLoginPageCheck = WebDriverWait(driver, 10).until(
-                expected_conditions.presence_of_element_located((By.ID, "loginPage_loginSubmit"))
-            )
-            if initialLoginPageCheck:
-                print(f"Successfully reset ISE admin password for {username} at {host} at {datetime.now()}")
-            else:
-                raise Exception(f"Failed to reset ISE admin password for {username} at {host} at {datetime.now()}")
-        else:
+        except NoSuchElementException:
+            passwordResetURLCheck = False
+        
+        if not passwordResetURLCheck:
             raise Exception(f"Expected password reset redirect not found for {username} at {host} at {datetime.now()}")
+        
+        # enter and save new password
+        newPasswordField = driver.find_element(By.ID, "PWD")
+        newPasswordField.click()
+        newPasswordField.send_keys(new_password)
+        confirmPasswordField = driver.find_element(By.ID, "confirmPWD")
+        confirmPasswordField.click()
+        confirmPasswordField.send_keys(new_password)
+        submitButton = driver.find_element(By.ID, "rstBtn")
+        submitButton.click()
+        
+        # wait for login page to load
+        if iseLogin(driver, check_mode=True):
+            print(f"Successfully reset ISE admin password for {username} at {host} at {datetime.now()}")
+        else:
+            raise Exception(f"Failed to reset ISE admin password for {username} at {host} at {datetime.now()}")
     finally:
         driver.quit()
 
