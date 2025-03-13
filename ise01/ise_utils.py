@@ -50,7 +50,7 @@ def waitForClick(driver, clickTarget, timeout=30):
 def waitForUrl(driver, url, timeout=30):
     waitForReadyState(driver, url=url, timeout=timeout)
 
-def getDriver(url=None):
+def getDriver(url=None, download_path=None):
     chrome_options = Options()
     # chrome_options.add_argument("--headless=new")                  # Run Chrome in headless mode (no visible UI)
     chrome_options.add_argument("--headless")                  # Run Chrome in headless mode (no visible UI)
@@ -59,8 +59,9 @@ def getDriver(url=None):
     chrome_options.add_argument("--disable-gpu")               # Potentially speeds up/avoids some issues on certain environments
     chrome_options.add_argument("--ignore-certificate-errors") # Tells Chrome not to reject self-signed certs
     chrome_options.add_argument("--allow-insecure-localhost")  # Allows navigation to pages on localhost with untrusted certs
-    chrome_options.page_load_strategy = "normal"               # Options are: none, eager, normal
-    download_path = os.getenv("SELENIUM_DOWNLOAD_PATH", os.path.dirname(os.path.abspath(__file__)))
+    chrome_options.page_load_strategy = "normal" # Options are: none, eager, normal
+    if not download_path:
+        download_path = os.getenv("SELENIUM_DOWNLOAD_PATH", os.path.dirname(os.path.abspath(__file__)))
     chrome_options.add_experimental_option("prefs", {
         "download.default_directory": download_path,
         "download.prompt_for_download": False,
