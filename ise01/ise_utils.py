@@ -62,12 +62,11 @@ def getDriver(url=None):
     chrome_options.add_argument("--ignore-certificate-errors") # Tells Chrome not to reject self-signed certs
     chrome_options.add_argument("--allow-insecure-localhost")  # Allows navigation to pages on localhost with untrusted certs
     chrome_options.page_load_strategy = "normal"               # Options are: none, eager, normal
-    path = os.path.dirname(os.path.abspath(__file__))
-    prefs = {
-        "download.default_directory": path
-    }
-    chrome_options.add_experimental_option("prefs", prefs)
-
+    download_path = os.path.dirname(os.path.abspath(__file__))
+    chrome_options.add_experimental_option("prefs", {
+        "download.default_directory": download_path,
+        "download.prompt_for_download": False,
+    })
     # Initialize the ChromeDriver using webdriver_manager
     LOGGER.info("Starting ChromeDriver...")
     driver = webdriver.Chrome(
@@ -75,6 +74,17 @@ def getDriver(url=None):
         options=chrome_options
     )
     LOGGER.info("ChromeDriver started.")
+    LOGGER.info("Setting download behavior...")
+    driver.command_executor._commands["send_command"] = ("POST", '/session/$sessionId/chromium/send_command')
+    params = {
+        'cmd': 'Page.setDownloadBehavior',
+        'params': {
+            'behavior': 'allow',
+            'downloadPath': download_path
+        }
+    }
+    driver.execute("send_command", params)
+    LOGGER.info("Download behavior set.")
     LOGGER.info("Maximizing window...")
     driver.maximize_window()
     LOGGER.info("Window maximized.")
