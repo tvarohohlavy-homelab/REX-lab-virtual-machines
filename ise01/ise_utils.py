@@ -52,7 +52,8 @@ def waitForUrl(driver, url, timeout=30):
 
 def getDriver(url=None):
     chrome_options = Options()
-    chrome_options.add_argument("--headless=new")                  # Run Chrome in headless mode (no visible UI)
+    # chrome_options.add_argument("--headless=new")                  # Run Chrome in headless mode (no visible UI)
+    chrome_options.add_argument("--headless")                  # Run Chrome in headless mode (no visible UI)
     chrome_options.add_argument("--no-sandbox")                # Often needed in containerized/CI environments
     chrome_options.add_argument("--disable-dev-shm-usage")     # Bypass /dev/shm issue if it's limited
     chrome_options.add_argument("--disable-gpu")               # Potentially speeds up/avoids some issues on certain environments
@@ -200,6 +201,21 @@ def isePostLoginPopUps(driver, timeout=30):
         except (TimeoutException, NoSuchElementException) as e:
             LOGGER.info("ISE modal not found.")
             break
+    # if class:xwtCloseIcon is present
+    try:
+        WebDriverWait(driver, timeout).until(
+            EC.visibility_of_element_located((By.CLASS_NAME, "xwtCloseIcon"))
+        )
+        LOGGER.info("Close icon found visible.")
+        closeIcon = driver.find_element(By.CLASS_NAME, "xwtCloseIcon")
+        LOGGER.info("Clicking close icon...")
+        closeIcon.click()
+        LOGGER.info("Close icon clicked.")
+        WebDriverWait(driver, timeout).until(
+            EC.invisibility_of_element_located((By.CLASS_NAME, "xwtCloseIcon"))
+        )
+    except (TimeoutException, NoSuchElementException) as e:
+        LOGGER.info("No alert close icon found visible.")
 
 def iseLogout(driver, timeout=30):
     try:
