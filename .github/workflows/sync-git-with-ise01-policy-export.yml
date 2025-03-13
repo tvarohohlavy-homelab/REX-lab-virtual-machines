@@ -73,6 +73,8 @@ jobs:
 
     - name: Copy latest Policy Export to target repo dir
       run: |
+        ls -lsa
+        ls -lsa ise01
         rm ${{ env.TARGET_REPO }}/PolicyConfig.xml || true
         mv ise01/PolicyConfig.xml ${{ env.TARGET_REPO }}/
     
