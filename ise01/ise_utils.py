@@ -55,7 +55,7 @@ def waitForUrl(driver, url, timeout=30):
 
 def getDriver(url=None):
     chrome_options = Options()
-    chrome_options.add_argument("--headless")                  # Run Chrome in headless mode (no visible UI)
+    chrome_options.add_argument("--headless=new")                  # Run Chrome in headless mode (no visible UI)
     chrome_options.add_argument("--no-sandbox")                # Often needed in containerized/CI environments
     chrome_options.add_argument("--disable-dev-shm-usage")     # Bypass /dev/shm issue if it's limited
     chrome_options.add_argument("--disable-gpu")               # Potentially speeds up/avoids some issues on certain environments
