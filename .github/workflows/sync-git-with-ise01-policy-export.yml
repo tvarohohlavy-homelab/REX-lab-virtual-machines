@@ -5,6 +5,7 @@ on:
 
 env:
   TARGET_REPO: ise01-config
+  SELENIUM_DOWNLOAD_PATH: /tmp
 
 jobs:
   setup-prerequisites:
@@ -67,7 +68,6 @@ jobs:
         ISE_HOST: ${{ vars.VM_ISE01_IP }}
         ISE_USERNAME: ${{ secrets.CISCO_ISE_ADMIN_USERNAME }}
         ISE_PASSWORD: ${{ secrets.CISCO_ISE_ADMIN_PASSWORD }}
-        SELENIUM_DOWNLOAD_PATH: /tmp
       run: |
         source venv/bin/activate
         python3.10 ise01/ise-export-policy.py
