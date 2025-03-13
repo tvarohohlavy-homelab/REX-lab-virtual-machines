@@ -80,7 +80,7 @@ jobs:
         ls -lsa ..
         ls -lsa
         ls -lsa ise01
-        find /home -name PolicyConfig.xml
+        find /tmp -name PolicyConfig.xml
         rm ${{ env.TARGET_REPO }}/PolicyConfig.xml || true
         mv ise01/PolicyConfig.xml ${{ env.TARGET_REPO }}/
     
