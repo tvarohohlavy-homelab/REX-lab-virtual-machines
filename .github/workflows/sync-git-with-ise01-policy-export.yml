@@ -67,14 +67,20 @@ jobs:
         ISE_HOST: ${{ vars.VM_ISE01_IP }}
         ISE_USERNAME: ${{ secrets.CISCO_ISE_ADMIN_USERNAME }}
         ISE_PASSWORD: ${{ secrets.CISCO_ISE_ADMIN_PASSWORD }}
+        SELENIUM_DOWNLOAD_PATH: /tmp
       run: |
         source venv/bin/activate
         python3.10 ise01/ise-export-policy.py
 
     - name: Copy latest Policy Export to target repo dir
       run: |
+        pwd
+        ls -lsa /tmp
+        ls -lsa ../..
+        ls -lsa ..
         ls -lsa
         ls -lsa ise01
+        find /home -name PolicyConfig.xml
         rm ${{ env.TARGET_REPO }}/PolicyConfig.xml || true
         mv ise01/PolicyConfig.xml ${{ env.TARGET_REPO }}/
     
