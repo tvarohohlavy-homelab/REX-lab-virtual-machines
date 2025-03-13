@@ -55,9 +55,11 @@ def main():
         # Perform Policy Export
         expNoEncryp = driver.find_element(By.ID, "expNoEncryp") # Uncheck Encryption
         #driver.execute_script("arguments[0].scrollIntoView();", expNoEncryp) # slide into view
-        expNoEncryp.click()
+        driver.execute_script("arguments[0].click();", expNoEncryp)
+        # expNoEncryp.click()
         dwnLclComp = driver.find_element(By.ID, "dwnLclComp") # Check Download to Local Computer
-        dwnLclComp.click()
+        driver.execute_script("arguments[0].click();", dwnLclComp)
+        # dwnLclComp.click()
         exportPolicyButton = driver.find_element(By.ID, "exportPolicy") # Export Policy
         LOGGER.info("Exporting Policy to local file...")
         waitForClick(driver, exportPolicyButton)
