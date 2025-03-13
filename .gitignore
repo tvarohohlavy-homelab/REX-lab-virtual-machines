@@ -1,0 +1,9 @@
+# test files
+test.py
+*.png
+
+# venv
+.venv/
+
+# python cache
+__pycache__/

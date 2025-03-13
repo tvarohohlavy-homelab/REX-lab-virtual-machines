@@ -148,7 +148,6 @@ jobs:
           ise01/ise-ztp.conf
         
     - name: Create VM from OVA Template
-      id: create-vm
       run: |
         cp cisco-ise-ztp-automation-on-vmware/* .
         cp ise01/ise-ztp.conf .
@@ -164,7 +163,7 @@ jobs:
         sudo ./woof -p 80 /data/${{ env.PATCH_FILE }}
         printf "Patch file was downloaded."
 
-  initial-ise01-config:
+  reset-ise01-credentials:
     needs: create-ise01-vm
     runs-on: [self-hosted, linux, initial, rexonix-infra]
     steps:
@@ -172,13 +171,13 @@ jobs:
 
     - uses: actions/checkout@v4
 
-    - name: Wait for ISE SSH to be ready
+    - name: Wait for ISE to start listening on SSH
       run: |
-        printf "Waiting for ISE SSH to be ready..."
+        echo "Waiting for ISE to start listening on SSH..."
         while ! nc -z ${{ env.VM_IP_ADDRESS }} 22; do
           sleep 1
         done
-        printf "ISE SSH is ready."
+        echo "ISE SSH is ready."
 
     - name: Reset ISE CLI admin password
       run: |
@@ -204,53 +203,26 @@ jobs:
 
     - name: Wait for ISE to start listening on HTTP(S)
       run: |
-        printf "Waiting for ISE HTTP to be ready..."
+        echo "Waiting for ISE to start listening on HTTP(S)..."
         while ! nc -z ${{ env.VM_IP_ADDRESS }} 443; do
-          sleep 1
+          echo "Port closed - Retrying..."
+          sleep 5
         done
-        printf "ISE HTTP(S) is ready."
+        echo "ISE HTTP(S) is ready - Continuing..."
 
-    - name: Wait for ISE Web UI to be ready
+    - name: Wait for ISE Web UI Login page to return 200 OK
       run: |
         URL="https://${{ env.VM_IP_ADDRESS }}:443/admin/login.jsp"
         echo "Waiting for ISE Web UI to return 200 OK..."
         while true; do
           status=$(curl -k -s -o /dev/null -w '%{http_code}' "$URL")
-          echo "Check returned status: $status"
+          echo "Returned status: $status - Retrying..."
           if [ "$status" = "200" ]; then
-            echo "Received HTTP 200! Cisco ISE UI appears to be up."
             break
           fi
-          sleep 2
+          sleep 5
         done
-
-    - name: Get ISE information from CLI over SSH
-      run: |
-        expect <<EOF
-        set timeout 120
-        spawn sshpass -p ${{ secrets.CISCO_ISE_ADMIN_PASSWORD }} \
-                      ssh -o StrictHostKeyChecking=no \
-                          -o UserKnownHostsFile=/dev/null \
-                          ${{ secrets.CISCO_ISE_ADMIN_USERNAME }}@${{ env.VM_IP_ADDRESS }}
-        expect "${{ env.VM_NAME }}/${{ secrets.CISCO_ISE_ADMIN_USERNAME }}#"
-        send "screen-length 0\r"
-        expect "${{ env.VM_NAME }}/${{ secrets.CISCO_ISE_ADMIN_USERNAME }}#"
-        send "screen-width 0\r"
-        expect "${{ env.VM_NAME }}/${{ secrets.CISCO_ISE_ADMIN_USERNAME }}#"
-        send "show uptime\r"
-        expect "${{ env.VM_NAME }}/${{ secrets.CISCO_ISE_ADMIN_USERNAME }}#"
-        send "show version\r"
-        expect "${{ env.VM_NAME }}/${{ secrets.CISCO_ISE_ADMIN_USERNAME }}#"
-        send "show application status ise\r"
-        expect "${{ env.VM_NAME }}/${{ secrets.CISCO_ISE_ADMIN_USERNAME }}#"
-        send "show logging application ise-psc.log\r"
-        expect "${{ env.VM_NAME }}/${{ secrets.CISCO_ISE_ADMIN_USERNAME }}#"
-        send "show running-config\r"
-        expect "${{ env.VM_NAME }}/${{ secrets.CISCO_ISE_ADMIN_USERNAME }}#"
-        send "exit\r"
-        expect "closed."
-        interact
-        EOF
+        echo "Received 200 OK - Continuing..."
 
     # NOTE: This does not work to avoid another enforced password change when logging in via GUI
     # - name: Reset ISE GUI admin password
@@ -289,7 +261,7 @@ jobs:
     #     EOF
 
     - name: Wait for ISE to fully get ready
-      run: sleep 600
+      run: sleep 60
 
     - name: Create Python Virtual Environment for Selenium
       run: |
@@ -306,5 +278,64 @@ jobs:
         ISE_NEW_PASSWORD: ${{ secrets.CISCO_ISE_ADMIN_PASSWORD }}
       run: |
         source venv/bin/activate
-        python3.10 ise01/selenium-ise-reset-ui-admin-password.py
-        
+        python3.10 ise01/ise-reset-ui-admin-password.py
+
+  get-ise01-info:
+    needs: reset-ise01-credentials
+    if: always()
+    runs-on: [self-hosted, linux, initial, rexonix-infra]
+    steps:
+    - uses: Anush008/clean-after-action@v4.2.0
+
+    - name: Get ISE information from CLI over SSH
+      run: |
+        expect <<EOF
+        set timeout 120
+        spawn sshpass -p ${{ secrets.CISCO_ISE_ADMIN_PASSWORD }} \
+                      ssh -o StrictHostKeyChecking=no \
+                          -o UserKnownHostsFile=/dev/null \
+                          ${{ secrets.CISCO_ISE_ADMIN_USERNAME }}@${{ env.VM_IP_ADDRESS }}
+        expect "${{ env.VM_NAME }}/${{ secrets.CISCO_ISE_ADMIN_USERNAME }}#"
+        send "screen-length 0\r"
+        expect "${{ env.VM_NAME }}/${{ secrets.CISCO_ISE_ADMIN_USERNAME }}#"
+        send "screen-width 0\r"
+        expect "${{ env.VM_NAME }}/${{ secrets.CISCO_ISE_ADMIN_USERNAME }}#"
+        send "show uptime\r"
+        expect "${{ env.VM_NAME }}/${{ secrets.CISCO_ISE_ADMIN_USERNAME }}#"
+        send "show version\r"
+        expect "${{ env.VM_NAME }}/${{ secrets.CISCO_ISE_ADMIN_USERNAME }}#"
+        send "show application status ise\r"
+        expect "${{ env.VM_NAME }}/${{ secrets.CISCO_ISE_ADMIN_USERNAME }}#"
+        send "show logging application ise-psc.log\r"
+        expect "${{ env.VM_NAME }}/${{ secrets.CISCO_ISE_ADMIN_USERNAME }}#"
+        send "show running-config\r"
+        expect "${{ env.VM_NAME }}/${{ secrets.CISCO_ISE_ADMIN_USERNAME }}#"
+        send "exit\r"
+        expect "closed."
+        interact
+        EOF
+
+  preconfigure-ise01:
+    needs: reset-ise01-credentials
+    if: always()
+    runs-on: [self-hosted, linux, initial, rexonix-infra]
+    steps:
+    - uses: Anush008/clean-after-action@v4.2.0
+
+    - uses: actions/checkout@v4
+
+    - name: Create Python Virtual Environment for Selenium
+      run: |
+        python3.10 -m venv venv
+        source venv/bin/activate
+        pip install selenium==4.29.0 \
+                    webdriver-manager==4.0.2
+
+    - name: Disable UI Admin Password Expiry
+      env:
+        ISE_HOST: ${{ env.VM_IP_ADDRESS }}
+        ISE_USERNAME: ${{ secrets.CISCO_ISE_ADMIN_USERNAME }}
+        ISE_PASSWORD: ${{ secrets.CISCO_ISE_ADMIN_PASSWORD }}
+      run: |
+        source venv/bin/activate
+        python3.10 ise01/ise-disable-ui-admin-password-expiration.py

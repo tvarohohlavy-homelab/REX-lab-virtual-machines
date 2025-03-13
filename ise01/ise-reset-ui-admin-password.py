@@ -1,70 +1,17 @@
 #!/usr/bin/env python3
 
-from selenium import webdriver
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
 #
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions
 from selenium.webdriver.support.wait import WebDriverWait
 #
+from ise_utils import getDriver, iseLogin, waitForClick
+#
 from datetime import datetime
 #
 import argparse
 import os
-
-def getDriver():
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")                  # Run Chrome in headless mode (no visible UI)
-    chrome_options.add_argument("--no-sandbox")                # Often needed in containerized/CI environments
-    chrome_options.add_argument("--disable-dev-shm-usage")     # Bypass /dev/shm issue if it's limited
-    chrome_options.add_argument("--disable-gpu")               # Potentially speeds up/avoids some issues on certain environments
-    chrome_options.add_argument("--ignore-certificate-errors") # Tells Chrome not to reject self-signed certs
-    chrome_options.add_argument("--allow-insecure-localhost")  # Allows navigation to pages on localhost with untrusted certs
-
-    # Initialize the ChromeDriver using webdriver_manager
-    driver = webdriver.Chrome(
-        service=Service(ChromeDriverManager().install()),
-        options=chrome_options
-    )
-    return driver
-
-def iseLogin(driver, username=None, password=None, check_mode=False):
-    try:
-        loginPageReady = WebDriverWait(driver, 30).until(
-            expected_conditions.all_of(
-                expected_conditions.url_contains("login.jsp"),
-                expected_conditions.presence_of_element_located((By.NAME, "username")),
-                expected_conditions.element_to_be_clickable((By.NAME, "username")), 
-                expected_conditions.presence_of_element_located((By.NAME, "password")),
-                expected_conditions.element_to_be_clickable((By.NAME, "password")),
-                expected_conditions.presence_of_element_located((By.ID, "loginPage_loginSubmit"))
-            )
-        )
-    except TimeoutException:
-        loginPageReady = False
-    except NoSuchElementException:
-        loginPageReady = False
-
-    if check_mode:
-        return loginPageReady
-
-    if not loginPageReady:
-        raise Exception(f"Failed to load ISE login page at {datetime.now()}")
-
-    if not username or not password:
-        raise Exception(f"Username and password are required to login to ISE at {datetime.now()}")
-
-    username_field = driver.find_element(By.NAME, "username")
-    username_field.click()
-    username_field.send_keys(username)
-    password_field = driver.find_element(By.NAME, "password")
-    password_field.click()
-    password_field.send_keys(password)
-    submit_button = driver.find_element(By.ID, "loginPage_loginSubmit")
-    submit_button.click()
 
 def main():
 
@@ -84,17 +31,14 @@ def main():
         parser.print_help()
         exit(1)
     
-    baseUrl = f"https://{host}/admin/login.jsp"
-    driver = getDriver()
-
+    baseUrl = f"https://{host}/admin"
     try:
-        driver.get(baseUrl)
-        driver.set_window_size(1920, 1040)
+        driver = getDriver(url=f"{baseUrl}/login.jsp")
         # Login
-        iseLogin(driver, username, old_password)
+        iseLogin(driver, username, old_password, timeout=60)
         # Initial enforced password change
         try:
-            passwordResetURLCheck = WebDriverWait(driver, 30).until(
+            passwordResetURLCheck = WebDriverWait(driver, 60).until(
                 expected_conditions.all_of(
                     expected_conditions.url_contains("resetPassword"),
                     expected_conditions.presence_of_element_located((By.ID, "PWD")),
@@ -104,9 +48,7 @@ def main():
                     expected_conditions.presence_of_element_located((By.ID, "rstBtn"))
                 )
             )
-        except TimeoutException:
-            passwordResetURLCheck = False
-        except NoSuchElementException:
+        except (TimeoutException, NoSuchElementException) as e:
             passwordResetURLCheck = False
         
         if not passwordResetURLCheck:
@@ -120,7 +62,7 @@ def main():
         confirmPasswordField.click()
         confirmPasswordField.send_keys(new_password)
         submitButton = driver.find_element(By.ID, "rstBtn")
-        submitButton.click()
+        waitForClick(driver, submitButton)
         
         # wait for login page to load
         if iseLogin(driver, check_mode=True):
