@@ -84,6 +84,7 @@ def getDriver(url=None):
     LOGGER.info("Download behavior set.")
     LOGGER.info("Maximizing window...")
     driver.maximize_window()
+    driver.set_window_size(1920, 1080)
     LOGGER.info("Window maximized.")
     if url:
         waitForUrl(driver, url)
