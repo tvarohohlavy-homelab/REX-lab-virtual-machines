@@ -2,6 +2,8 @@ name: Auto | Sync Git with ise01 policy export
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "0 */12 * * *"
 
 env:
   TARGET_REPO: ise01-config
