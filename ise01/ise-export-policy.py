@@ -47,12 +47,17 @@ def main():
                 EC.element_to_be_clickable((By.ID, "exportPolicy"))
             )
         )
-        # Click on Password Policy Tab
-        expNoEncryp = driver.find_element(By.ID, "expNoEncryp")
+        # Hide side menu
+        driver.find_element(By.CLASS_NAME, "sidenav-toggler").click()
+        WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located((By.XPATH, "//div[@id='sidenav'][@class='toggled']"))
+        )
+        # Perform Policy Export
+        expNoEncryp = driver.find_element(By.ID, "expNoEncryp") # Uncheck Encryption
         expNoEncryp.click()
-        dwnLclComp = driver.find_element(By.ID, "dwnLclComp")
+        dwnLclComp = driver.find_element(By.ID, "dwnLclComp") # Check Download to Local Computer
         dwnLclComp.click()
-        exportPolicyButton = driver.find_element(By.ID, "exportPolicy")
+        exportPolicyButton = driver.find_element(By.ID, "exportPolicy") # Export Policy
         LOGGER.info("Exporting Policy to local file...")
         waitForClick(driver, exportPolicyButton)
         LOGGER.info("Policy Exported to local file")
