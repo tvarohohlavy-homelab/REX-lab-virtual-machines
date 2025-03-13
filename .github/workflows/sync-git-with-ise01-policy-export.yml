@@ -76,7 +76,7 @@ jobs:
       run: |
         ls -ls /tmp
         rm ${{ env.TARGET_REPO }}/PolicyConfig.xml || true
-        mv ${{ env.SELENIUM_DOWNLOAD_PATH }}/PolicyConfig.xml ${{ env.TARGET_REPO }}/
+        sudo mv ${{ env.SELENIUM_DOWNLOAD_PATH }}/PolicyConfig.xml ${{ env.TARGET_REPO }}/
     
     - name: Workaround for git
       run: git config --global --add safe.directory '*'
