@@ -1,0 +1,86 @@
+name: Auto | Sync Git with ise01 policy export
+
+on:
+  workflow_dispatch:
+
+env:
+  TARGET_REPO: ise01-config
+
+jobs:
+  setup-prerequisites:
+    runs-on: [self-hosted, linux, initial, rexonix-infra]
+    steps:
+    - uses: Anush008/clean-after-action@v4.2.0
+
+    - name: Install google-chrome
+      run: |
+        if ! command -v google-chrome &> /dev/null
+        then
+          wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo apt install -y ./google-chrome-stable_current_amd64.deb
+          rm google-chrome-stable_current_amd64.deb
+        fi
+        google-chrome --version
+
+    - name: Install python3.10-venv
+      run: |
+        if ! apt list --installed 2>/dev/null | grep -q "python3.10-venv"; then
+          sudo apt-get update
+          sudo apt-get install -y python3.10-venv
+        fi
+        python3.10 -m venv --help
+
+  export-ise01-policy:
+    needs: setup-prerequisites
+    runs-on: [self-hosted, linux, initial, rexonix-infra]
+    steps:
+    - uses: Anush008/clean-after-action@v4.2.0
+
+    - uses: actions/checkout@v4
+
+    - uses: actions/checkout@v4
+      with:
+        repository: Rexonix-Connect/${{ env.TARGET_REPO }}
+        path: ${{ env.TARGET_REPO }}
+        token: ${{ secrets.ISE01_CONFIG_REPO_TOKEN }}
+
+    - name: Check ISE is listening on HTTP(S)
+      run: nc -z ${{ vars.VM_ISE01_IP }} 443
+
+    - name: Check ISE Web UI Login page returns 200 OK
+      run: |
+        URL="https://${{ vars.VM_ISE01_IP }}:443/admin/login.jsp"
+        status=$(curl -k -s -o /dev/null -w '%{http_code}' "$URL")
+        if [ "$status" != "200" ]; then
+          exit 1
+        fi
+
+    - name: Create Python Virtual Environment for Selenium
+      run: |
+        python3.10 -m venv venv
+        source venv/bin/activate
+        pip install selenium==4.29.0 \
+                    webdriver-manager==4.0.2
+
+    - name: Perform Policy Export in ISE
+      env:
+        ISE_HOST: ${{ vars.VM_ISE01_IP }}
+        ISE_USERNAME: ${{ secrets.CISCO_ISE_ADMIN_USERNAME }}
+        ISE_PASSWORD: ${{ secrets.CISCO_ISE_ADMIN_PASSWORD }}
+      run: |
+        source venv/bin/activate
+        python3.10 ise01/ise-export-policy.py
+
+    - name: Copy latest Policy Export to target repo dir
+      run: |
+        rm ${{ env.TARGET_REPO }}/PolicyConfig.xml
+        mv ise01/PolicyConfig.xml ${{ env.TARGET_REPO }}/
+    
+    - name: Workaround for git
+      run: git config --global --add safe.directory '*'
+
+    - uses: stefanzweifel/git-auto-commit-action@v5
+      with:
+        repository: '${{ env.TARGET_REPO }}'
+        file_pattern: 'PolicyConfig.xml'
+        commit_message: Automatic changes | PolicyConfig.xml synced from ISE

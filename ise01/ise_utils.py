@@ -14,6 +14,7 @@ from datetime import datetime
 from time import sleep
 import logging
 import sys
+import os
 #
 
 LOGGER = logging.getLogger("selenium")
@@ -23,7 +24,7 @@ stdoutHandler = logging.StreamHandler(stream=sys.stdout)
 # Set the log levels on the handlers
 stdoutHandler.setLevel(logging.DEBUG)
 fmt = logging.Formatter(
-    "%(name)s: %(asctime)s | %(levelname)s | %(filename)s:%(lineno)s | %(process)d >>> %(message)s"
+    "%(name)s: %(asctime)s | %(levelname)s | %(filename)s:%(lineno)4s - %(funcName)20s() | %(process)d >>> %(message)s"
 )
 stdoutHandler.setFormatter(fmt)
 LOGGER.addHandler(stdoutHandler)
@@ -61,6 +62,11 @@ def getDriver(url=None):
     chrome_options.add_argument("--ignore-certificate-errors") # Tells Chrome not to reject self-signed certs
     chrome_options.add_argument("--allow-insecure-localhost")  # Allows navigation to pages on localhost with untrusted certs
     chrome_options.page_load_strategy = "normal"               # Options are: none, eager, normal
+    path = os.path.dirname(os.path.abspath(__file__))
+    prefs = {
+        "download.default_directory": path
+    }
+    chrome_options.add_experimental_option("prefs", prefs)
 
     # Initialize the ChromeDriver using webdriver_manager
     LOGGER.info("Starting ChromeDriver...")
