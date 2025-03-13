@@ -24,10 +24,11 @@ def main():
     if not host or not username or not password:
         parser.print_help()
         exit(1)
-    
+
+    download_path = os.getenv("SELENIUM_DOWNLOAD_PATH", os.path.dirname(os.path.abspath(__file__)))
     baseUrl = f"https://{host}/admin"
     try:
-        driver = getDriver(url=f"{baseUrl}/login.jsp")
+        driver = getDriver(url=f"{baseUrl}/login.jsp", download_path=download_path)
         # Login
         iseLogin(driver, username, password, timeout=60)
         isePostLoginPopUps(driver)
@@ -61,8 +62,9 @@ def main():
         driver.execute_script("arguments[0].click();", dwnLclComp)
         # dwnLclComp.click()
         exportPolicyButton = driver.find_element(By.ID, "exportPolicy") # Export Policy
-        LOGGER.info("Exporting Policy to local file...")
-        waitForClick(driver, exportPolicyButton)
+        while not os.path.exists(f"{download_path}/PolicyConfig.xml"):
+            LOGGER.info("Exporting Policy to local file...")
+            waitForClick(driver, exportPolicyButton)
         LOGGER.info("Policy Exported to local file")
         # #######################################################################
 
