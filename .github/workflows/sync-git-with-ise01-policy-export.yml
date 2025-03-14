@@ -76,7 +76,6 @@ jobs:
 
     - name: Copy latest Policy Export to target repo dir
       run: |
-        ls -ls /tmp
         rm ${{ env.TARGET_REPO }}/PolicyConfig.xml || true
         sudo mv ${{ env.SELENIUM_DOWNLOAD_PATH }}/PolicyConfig.xml ${{ env.TARGET_REPO }}/
     
