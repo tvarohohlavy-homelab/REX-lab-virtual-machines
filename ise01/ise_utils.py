@@ -61,7 +61,7 @@ def getDriver(url=None, download_path=None):
     chrome_options.add_argument("--allow-insecure-localhost")  # Allows navigation to pages on localhost with untrusted certs
     chrome_options.page_load_strategy = "normal" # Options are: none, eager, normal
     if not download_path:
-        download_path = os.getenv("SELENIUM_DOWNLOAD_PATH", os.path.dirname(os.path.abspath(__file__)))
+        download_path = os.path.dirname(os.path.abspath(__file__))
     chrome_options.add_experimental_option("prefs", {
         "download.default_directory": download_path,
         "download.prompt_for_download": False,

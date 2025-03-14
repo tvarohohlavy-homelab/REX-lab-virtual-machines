@@ -17,16 +17,17 @@ def main():
     parser.add_argument("--host", type=str, default=os.getenv("ISE_HOST", ""), help="Cisco ISE hostname or IP address (env ISE_HOST) (required)")
     parser.add_argument("--username", type=str, default=os.getenv("ISE_USERNAME", ""), help="Cisco ISE username (env ISE_USERNAME) (required)")
     parser.add_argument("--password", type=str, default=os.getenv("ISE_PASSWORD", ""), help="Cisco ISE password (env ISE_PASSWORD) (required)")
+    parser.add_argument("--download-path", type=str, default=os.getenv("SELENIUM_DOWNLOAD_PATH", ""), help="Selenium download path (env SELENIUM_DOWNLOAD_PATH)")
     args = parser.parse_args()
     host = args.host
     username = args.username
     password = args.password
+    download_path = args.download_path
 
     if not host or not username or not password:
         parser.print_help()
         exit(1)
 
-    download_path = os.getenv("SELENIUM_DOWNLOAD_PATH", os.path.dirname(os.path.abspath(__file__)))
     baseUrl = f"https://{host}/admin"
     try:
         driver = getDriver(url=f"{baseUrl}/login.jsp", download_path=download_path)
