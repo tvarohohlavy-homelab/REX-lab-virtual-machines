@@ -64,13 +64,13 @@ def main():
         driver.execute_script("arguments[0].click();", dwnLclComp)
         # dwnLclComp.click()
         exportPolicyButton = driver.find_element(By.ID, "exportPolicy") # Export Policy
-        for i in range(100):
+        for i in range(1, 100):
             LOGGER.info("Trying to exporting Policy to local file...")
             waitForClick(driver, exportPolicyButton)
+            sleep(i*2)
             if os.path.exists(f"{download_path}/PolicyConfig.xml"):
                 LOGGER.info("Policy Exported to local file")
                 break
-            sleep(i*2)
         else:
             LOGGER.error("Policy Export to local file failed")
             iseLogout(driver)
