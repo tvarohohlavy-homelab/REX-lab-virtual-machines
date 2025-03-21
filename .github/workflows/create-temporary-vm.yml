@@ -1,0 +1,112 @@
+name: Day2 | Create temporary VM
+
+on:
+  workflow_dispatch:
+    inputs:
+      vmName:
+        description: 'Name of the VM to create'
+        required: true
+        type: string
+      customPortGroup:
+        description: 'Name of the port group to connect the VM to. Empty for default. Default is the default port group.'
+        type: string
+      useDhcp:
+        description: 'Use DHCP for the VM. Default is true.'
+        type: boolean
+        default: true
+      customIPAddress:
+        description: 'Custom IP address for the VM. useDhcp must be false for this to apply.'
+        type: string
+      customNetmask:
+        description: 'Custom netmask for the VM. Empty for default. Default is the default port group netmask. useDhcp must be false for this to apply.'
+        type: string
+      customGateway:
+        description: 'Custom gateway for the VM. Empty for default. Default is the default port group gateway. useDhcp must be false for this to apply.'
+        type: string
+      customDNS:
+        description: 'Custom DNS server for the VM. Empty for default. Default is the default DNS server. can be left empty with useDhcp true.'
+        type: string
+      customDomain:
+        description: 'Custom domain for the VM. Empty for default. Default is the default domain. can be left empty with useDhcp true.'
+        type: string
+      
+env:
+  VM_TEMPLATE_NAME: ${{ vars.UBUNTU_22_04_SERVER_X64_VM_TEMPLATE_NAME }}
+  VM_NAME: ${{ github.event.inputs.vmName }}
+  VM_FOLDER: TEMP-can-be-deleted
+  VM_USE_DHCP: ${{ github.event.inputs.useDhcp }}
+  VM_IP_ADDRESS: ${{ github.event.inputs.customIPAddress }}
+  VM_PORT_GROUP: ${{ github.event.inputs.customPortGroup || vars.VCENTER_DEFAULT_PORT_GROUP }}
+  VM_IP_NETMASK: ${{ github.event.inputs.customNetmask || vars.VCENTER_DEFAULT_PORT_GROUP_NETMASK }}
+  VM_IP_GATEWAY: ${{ github.event.inputs.customGateway || vars.VCENTER_DEFAULT_PORT_GROUP_GATEWAY }}
+  VM_DNS_SERVER: ${{ github.event.inputs.customDNS || vars.DNS_SERVER_IPV4_LAB_VIP }}
+  VM_DOMAIN_NAME: ${{ github.event.inputs.customDomain || vars.VM_DOMAIN_NAME_LAB }}
+
+
+
+jobs:
+  create-vm-from-template:
+    runs-on: [self-hosted, linux, initial, rexonix-infra]
+    container: ghcr.io/opentofu/opentofu:1.9.0
+    steps:
+      - uses: Anush008/clean-after-action@v4.2.0
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Set encryption key in main.tf
+        uses: tvarohohlavy/inplace-envsubst-action@v1.0.0
+        env:
+          STATEFILE_PATH:  "temp-terraform.tfstate"
+          TF_ENCRYPTION_KEY: ${{ secrets.TF_ENCRYPTION_PASSWORD }}
+        with:
+          variables: |
+            $STATEFILE_PATH
+            $TF_ENCRYPTION_KEY
+          files: |
+            terraform/main.tf
+
+      - name: Create VM from template with OpenTofu
+        id: create-vm
+        working-directory: terraform
+        run: |
+          # init, plan, apply
+          tofu init --plugin-dir ./mirror
+          tofu plan -out "tfplan" | tee tfplan.log
+          tofu apply -auto-approve "tfplan"
+          # save tfplan to output for later use
+          echo "TFPLAN<<EOF" >> $GITHUB_OUTPUT
+          echo "$(cat tfplan.log)" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        env:
+          TF_LOG: "ERROR"
+          # vCenter
+          TF_VAR_vCenterServer: ${{ secrets.VCENTER_HOST }}
+          TF_VAR_vCenterUsername: ${{ secrets.VCENTER_USER }}
+          TF_VAR_vCenterPassword: ${{ secrets.VCENTER_PASS }}
+          TF_VAR_vCenterInsecureConnection: ${{ secrets.VCENTER_INSECURE_CONNECTION }}
+          TF_VAR_vCenterDatacenterName: ${{ vars.VCENTER_DATACENTER_NAME }}
+          TF_VAR_clusterName: ${{ vars.VCENTER_CLUSTER_NAME }}
+          TF_VAR_datastoreName: ${{ vars.VCENTER_DATASTORE_NAME }}
+          # ubuntu 22.04 server x64
+          TF_VAR_templateName: ${{ env.VM_TEMPLATE_NAME }}
+          TF_VAR_libraryName: ${{ vars.VCENTER_PACKER_CONTENT_LIBRARY_NAME }}
+          # specific to the VM
+          TF_VAR_vmName: ${{ env.VM_NAME }}
+          TF_VAR_vmFolder: ${{ env.VM_FOLDER }}
+          # network
+          TF_VAR_useDhcp: ${{ env.VM_USE_DHCP }}
+          TF_VAR_portGroup: ${{ env.VM_PORT_GROUP }}
+          TF_VAR_vmIPAddresses: "[\"${{ env.VM_IP_ADDRESS }}\"]"
+          TF_VAR_vmIPNetmask: ${{ env.VM_IP_NETMASK }}
+          TF_VAR_vmIPGateway: ${{ env.VM_IP_GATEWAY }}
+          TF_VAR_dnsServerList: "[\"${{ env.VM_DNS_SERVER }}\"]" # TODO: how to handle multiple nicely
+          TF_VAR_vmDomain: ${{ env.VM_DOMAIN_NAME }}
+          # access
+          TF_VAR_vmUsername: ${{ secrets.VM_USERNAME }}
+          TF_VAR_vmPassword: ${{ secrets.VM_PASSWORD }}
+          TF_VAR_authorizedSshKeys: "[\"${{ secrets.JT_SSH_PUBLIC_KEY }}\",\"${{ secrets.RUNNER01_SSH_PUBLIC_KEY }}\"]"
+
+
+   

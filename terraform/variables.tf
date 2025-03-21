@@ -83,3 +83,8 @@ variable "vmDomain" {
   description = "The Domain for the VM(s)"
   type        = string
 }
+variable "useDhcp" {
+  type        = bool
+  description = "Set true to use DHCP; false for static IP."
+  default     = false
+}

@@ -5,13 +5,19 @@ network:
   version: 2
   ethernets:
     ens192:
+%{ if use_dhcp }
+      dhcp4: true
+%{ else }
       dhcp4: false
       addresses:
         - ${ipv4_address}/${ipv4_netmask}
       gateway4: ${ipv4_gateway}
+%{ endif }
+%{ if domain and dns_servers }
       nameservers:
         search: [${domain}]
         addresses: ${dns_servers}
+%{ endif }
 growpart:
   mode: auto
   devices: ['/dev/sda2']
