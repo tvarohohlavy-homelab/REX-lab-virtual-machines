@@ -40,7 +40,7 @@ locals {
     ipv4_netmask = var.useDhcp ? "" : var.vmIPNetmask
     ipv4_gateway = var.useDhcp ? "" : var.vmIPGateway
     domain       = var.vmDomain ? var.vmDomain : ""
-    dns_servers  = var.dnsServerList ? jsonencode(var.dnsServerList) : []
+    dns_servers  = var.dnsServerList ? jsonencode(var.dnsServerList) : ""
     public_keys  = jsonencode(concat(var.authorizedSshKeys, [tls_private_key.temp_ssh_keypair.public_key_openssh]))
     ssh_username = var.vmUsername
     ssh_password = var.vmPassword

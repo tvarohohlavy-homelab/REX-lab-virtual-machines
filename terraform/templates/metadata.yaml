@@ -13,7 +13,7 @@ network:
         - ${ipv4_address}/${ipv4_netmask}
       gateway4: ${ipv4_gateway}
 %{ endif }
-%{ if domain != "" && lenght(dns_servers) > 0 }
+%{ if domain != "" && dns_servers != "" }
       nameservers:
         search: [${domain}]
         addresses: ${dns_servers}
