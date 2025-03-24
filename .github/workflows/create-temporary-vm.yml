@@ -172,13 +172,7 @@ jobs:
 
       - name: Delete VM if it exists
         run: |
-          if govc vm.info ${{ env.VM_NAME }} \
-                          -dc ${{ vars.VCENTER_DATACENTER_NAME }} \
-                          -vm.ipath=/${{ vars.VCENTER_DATACENTER_NAME }}/vm/${{ env.VM_FOLDER }}/${{ env.VM_NAME }} &> /dev/null
-          then
-              govc vm.destroy ${{ env.VM_NAME }} \
-                              -dc ${{ vars.VCENTER_DATACENTER_NAME }} \
-                              -vm.ipath=/${{ vars.VCENTER_DATACENTER_NAME }}/vm/${{ env.VM_FOLDER }}/${{ env.VM_NAME }}
-          else
-              echo "VM ${{ env.VM_NAME }} does not already exist."
-          fi
+          govc vm.destroy -dc=${{ vars.VCENTER_DATACENTER_NAME }} \
+                          -vm.ipath=/${{ vars.VCENTER_DATACENTER_NAME }}/vm/${{ env.VM_FOLDER }}/${{ env.VM_NAME }} \
+                          ${{ env.VM_NAME }} \
+                          >/dev/null 2>&1 || true
