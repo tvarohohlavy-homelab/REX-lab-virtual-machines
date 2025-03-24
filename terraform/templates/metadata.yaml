@@ -10,7 +10,9 @@ network:
 %{ else }
       dhcp4: false
       addresses:
+%{ for ipv4_address in ipv4_addresses }
         - ${ipv4_address}/${ipv4_netmask}
+%{ endfor }
       gateway4: ${ipv4_gateway}
 %{ endif }
 %{ if domain != "" && dns_servers != "" }

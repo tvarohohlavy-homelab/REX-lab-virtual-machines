@@ -15,7 +15,7 @@ on:
         type: boolean
         default: true
       customIPAddress:
-        description: 'Custom IP address for the VM. useDhcp must be false for this to apply.'
+        description: 'Custom IP address(es) for the VM. Separate multiple with comma. useDhcp must be false for this to apply.'
         type: string
       customNetmask:
         description: 'Custom netmask for the VM. Empty for default. Default is the default port group netmask. useDhcp must be false for this to apply.'
@@ -24,10 +24,13 @@ on:
         description: 'Custom gateway for the VM. Empty for default. Default is the default port group gateway. useDhcp must be false for this to apply.'
         type: string
       customDNS:
-        description: 'Custom DNS server for the VM. Empty for default. Default is the default DNS server. can be left empty with useDhcp true.'
+        description: 'Custom DNS server(s) for the VM. Empty for default. Separate multiple with comma. Default is the default DNS server. can be left empty with useDhcp true.'
         type: string
       customDomain:
         description: 'Custom domain for the VM. Empty for default. Default is the default domain. can be left empty with useDhcp true.'
+        type: string
+      customAuthorizedKeys:
+        description: 'Custom authorized SSH keys for the VM. Separate multiple with comma. Default is the default authorized keys only.'
         type: string
       
 env:
@@ -35,11 +38,9 @@ env:
   VM_NAME: ${{ github.event.inputs.vmName }}
   VM_FOLDER: TEMP-can-be-deleted
   VM_USE_DHCP: ${{ github.event.inputs.useDhcp }}
-  VM_IP_ADDRESS: ${{ github.event.inputs.customIPAddress }}
   VM_PORT_GROUP: ${{ github.event.inputs.customPortGroup || vars.VCENTER_DEFAULT_PORT_GROUP }}
   VM_IP_NETMASK: ${{ github.event.inputs.customNetmask || vars.VCENTER_DEFAULT_PORT_GROUP_NETMASK }}
   VM_IP_GATEWAY: ${{ github.event.inputs.customGateway || vars.VCENTER_DEFAULT_PORT_GROUP_GATEWAY }}
-  VM_DNS_SERVER: ${{ github.event.inputs.customDNS || vars.DNS_SERVER_IPV4_LAB_VIP }}
   VM_DOMAIN_NAME: ${{ github.event.inputs.customDomain || vars.VM_DOMAIN_NAME_LAB }}
 
 
@@ -66,6 +67,39 @@ jobs:
             $TF_ENCRYPTION_KEY
           files: |
             terraform/main.tf
+
+      - name: Process DNS servers
+        run: |
+          if [ -z "${{ github.event.inputs.customDNS }}" ]; then
+            echo "No custom DNS servers provided, using default."
+            export VM_DNS_SERVER="[\"${{ vars.DNS_SERVER_IPV4_LAB_VIP }}\"]"
+          else
+            echo "Custom DNS servers provided."
+            export VM_DNS_SERVER="[\"$(echo ${{ github.event.inputs.customDNS }} | sed 's/,/","/g')\"]"
+          fi
+          echo "VM_DNS_SERVER=$VM_DNS_SERVER" >> $GITHUB_ENV
+
+      - name: Process IP address
+        run: |
+          if [ "${{ github.event.inputs.useDhcp }}" = "false" ]; then
+            echo "Custom IP address provided."
+            export VM_IP_ADDRESS="[\"$(echo ${{ github.event.inputs.customIPAddress }} | sed 's/,/","/g')\"]"
+          else
+            echo "No custom IP address provided, using DHCP."
+            export VM_IP_ADDRESS=""
+          fi
+          echo "VM_IP_ADDRESS=$VM_IP_ADDRESS" >> $GITHUB_ENV
+
+      - name: Process Authorized SSH keys
+        run: |
+          if [ -z "${{ github.event.inputs.customAuthorizedKeys }}" ]; then
+            echo "No custom authorized SSH keys provided, using default."
+            export VM_AUTHORIZED_SSH_KEYS="[\"${{ secrets.JT_SSH_PUBLIC_KEY }}\",\"${{ secrets.RUNNER01_SSH_PUBLIC_KEY }}\"]"
+          else
+            echo "Custom authorized SSH keys provided."
+            export VM_AUTHORIZED_SSH_KEYS="[\"${{ secrets.JT_SSH_PUBLIC_KEY }}\",\"${{ secrets.RUNNER01_SSH_PUBLIC_KEY }}\",\"$(echo ${{ github.event.inputs.customAuthorizedKeys }} | sed 's/,/\",\"/g')\"]"
+          fi
+          echo "VM_AUTHORIZED_SSH_KEYS=$VM_AUTHORIZED_SSH_KEYS" >> $GITHUB_ENV
 
       - name: Create VM from template with OpenTofu
         id: create-vm
@@ -98,15 +132,12 @@ jobs:
           # network
           TF_VAR_useDhcp: ${{ env.VM_USE_DHCP }}
           TF_VAR_portGroup: ${{ env.VM_PORT_GROUP }}
-          TF_VAR_vmIPAddresses: "[\"${{ env.VM_IP_ADDRESS }}\"]"
+          TF_VAR_vmIPAddresses: ${{ env.VM_IP_ADDRESS }}
           TF_VAR_vmIPNetmask: ${{ env.VM_IP_NETMASK }}
           TF_VAR_vmIPGateway: ${{ env.VM_IP_GATEWAY }}
-          TF_VAR_dnsServerList: "[\"${{ env.VM_DNS_SERVER }}\"]" # TODO: how to handle multiple nicely
+          TF_VAR_dnsServerList: ${{ env.VM_DNS_SERVER }}
           TF_VAR_vmDomain: ${{ env.VM_DOMAIN_NAME }}
           # access
           TF_VAR_vmUsername: ${{ secrets.VM_USERNAME }}
           TF_VAR_vmPassword: ${{ secrets.VM_PASSWORD }}
-          TF_VAR_authorizedSshKeys: "[\"${{ secrets.JT_SSH_PUBLIC_KEY }}\",\"${{ secrets.RUNNER01_SSH_PUBLIC_KEY }}\"]"
-
-
-   
+          TF_VAR_authorizedSshKeys: ${{ env.VM_AUTHORIZED_SSH_KEYS }}
