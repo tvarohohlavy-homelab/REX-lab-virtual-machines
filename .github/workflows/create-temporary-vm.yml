@@ -47,8 +47,6 @@ env:
   VM_IP_GATEWAY: ${{ github.event.inputs.customGateway || vars.VCENTER_DEFAULT_PORT_GROUP_GATEWAY }}
   VM_DOMAIN_NAME: ${{ github.event.inputs.customDomain || vars.VM_DOMAIN_NAME_LAB }}
 
-
-
 jobs:
   create-vm-from-template:
     runs-on: [self-hosted, linux, initial, rexonix-infra]
@@ -104,17 +102,17 @@ jobs:
           echo "VM_AUTHORIZED_SSH_KEYS=$VM_AUTHORIZED_SSH_KEYS" >> $GITHUB_ENV
 
       - name: Create VM from template with OpenTofu
-        id: create-vm
         working-directory: terraform
         run: |
           # init, plan, apply
           tofu init --plugin-dir ./mirror
           tofu plan -out "tfplan" | tee tfplan.log
           tofu apply -auto-approve "tfplan"
+          # NOT USED:
           # save tfplan to output for later use
-          echo "TFPLAN<<EOF" >> $GITHUB_OUTPUT
-          echo "$(cat tfplan.log)" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          # echo "TFPLAN<<EOF" >> $GITHUB_OUTPUT
+          # echo "$(cat tfplan.log)" >> $GITHUB_OUTPUT
+          # echo "EOF" >> $GITHUB_OUTPUT
         env:
           TF_LOG: "ERROR"
           # vCenter
@@ -143,6 +141,59 @@ jobs:
           TF_VAR_vmUsername: ${{ secrets.VM_USERNAME }}
           TF_VAR_vmPassword: ${{ secrets.VM_PASSWORD }}
           TF_VAR_authorizedSshKeys: ${{ env.VM_AUTHORIZED_SSH_KEYS }}
+
+  customize-vm-os:
+    runs-on: [self-hosted, linux, initial, rexonix-infra]
+    needs: create-vm-from-template
+    env:
+      GOVC_INSECURE: ${{ secrets.VCENTER_INSECURE_CONNECTION }}
+      GOVC_URL: ${{ secrets.VCENTER_HOST }}
+      GOVC_USERNAME: ${{ secrets.VCENTER_USER }}
+      GOVC_PASSWORD: ${{ secrets.VCENTER_PASS }}
+    steps:
+      - uses: Anush008/clean-after-action@v4.2.0
+
+      - name: Install govc
+        run: |
+          if ! command -v govc &> /dev/null
+          then
+              curl -L -o - "https://github.com/vmware/govmomi/releases/latest/download/govc_$(uname -s)_$(uname -m).tar.gz" \
+                   | sudo tar -C /usr/local/bin -xvzf - govc
+          fi
+          govc version
+
+      - name: Get VM IP address (needed due to possible DHCP usage)
+        run: |
+          VM_IP=$(govc vm.info -dc=${{ vars.VCENTER_DATACENTER_NAME }}\
+                       -vm.ipath=/${{ vars.VCENTER_DATACENTER_NAME }}/vm/${{ env.VM_FOLDER }}/${{ env.VM_NAME }} \
+                       -json=true \
+                       ${{ env.VM_NAME }} \
+                       | jq -r ''.virtualMachines[0].guest.ipAddress')
+          echo "VM_IP_ADDRESS=$VM_IP" >> $GITHUB_ENV
+
+      - name: Install Tools on VM
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.VM_IP_ADDRESS }}
+          username: ${{ secrets.VM_USERNAME }}
+          key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
+          script: |
+            # Disable Interactive mode for Service restarts
+            echo "\$nrconf{restart} = 'a';" | sudo tee /etc/needrestart/conf.d/mynrconf.conf
+            sudo apt update
+            sudo apt install -y curl \
+                                inetutils-traceroute \
+                                iftop \
+                                btop \
+                                iperf3 \
+                                net-tools \
+                                dnsutils \
+                                snmp \
+                                tcpreplay \
+                                ldap-utils \
+                                nmap
+            echo "wireshark-common wireshark-common/install-setuid boolean true" | sudo debconf-set-selections
+            sudo DEBIAN_FRONTEND=noninteractive apt install -y tshark
 
   auto-delete-vm:
     runs-on: [self-hosted, linux, initial, rexonix-infra]
