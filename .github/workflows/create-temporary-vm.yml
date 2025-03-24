@@ -198,7 +198,7 @@ jobs:
       - name: Write Workflow summary
         run: |
           echo "VM '${{ env.VM_NAME }}'is created and ready." >> $GITHUB_STEP_SUMMARY
-          echo "Access it with: 'ssh ${{ secrets.VM_USERNAME }}@${{ env.VM_IP_ADDRESS }}'" >> $GITHUB_STEP_SUMMARY
+          echo "Access it with: 'ssh <username>@${{ env.VM_IP_ADDRESS }}'" >> $GITHUB_STEP_SUMMARY
 
   auto-delete-vm:
     runs-on: [self-hosted, linux, initial, rexonix-infra]
