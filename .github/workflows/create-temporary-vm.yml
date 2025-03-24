@@ -50,7 +50,6 @@ env:
 jobs:
   verify-ip-is-not-used:
     runs-on: [self-hosted, linux, initial, rexonix-infra]
-    container: ghcr.io/opentofu/opentofu:1.9.0
     if: ${{ github.event.inputs.useDhcp == false }}
     steps:
       - uses: Anush008/clean-after-action@v4.2.0
