@@ -48,8 +48,32 @@ env:
   VM_DOMAIN_NAME: ${{ github.event.inputs.customDomain || vars.VM_DOMAIN_NAME_LAB }}
 
 jobs:
+  verify-ip-is-not-used:
+    runs-on: [self-hosted, linux, initial, rexonix-infra]
+    container: ghcr.io/opentofu/opentofu:1.9.0
+    if: ${{ github.event.inputs.useDhcp == false }}
+    steps:
+      - uses: Anush008/clean-after-action@v4.2.0
+
+      - name: Check if IP address is already in use
+        run: |
+          if [ -z "${{ github.event.inputs.customIPAddress }}" ]; then
+            echo "No custom IP address provided."
+            exit 1
+          else
+            for i in $(echo ${{ github.event.inputs.customIPAddress }} | sed "s/,/ /g"); do
+              if ping -c 1 $i &> /dev/null; then
+                echo "IP address '$i' is already in use."
+                exit 1
+              else
+                echo "IP address '$i' is not in use."
+              fi
+            done
+          fi
+
   create-vm-from-template:
     runs-on: [self-hosted, linux, initial, rexonix-infra]
+    needs: verify-ip-is-not-used
     container: ghcr.io/opentofu/opentofu:1.9.0
     steps:
       - uses: Anush008/clean-after-action@v4.2.0
