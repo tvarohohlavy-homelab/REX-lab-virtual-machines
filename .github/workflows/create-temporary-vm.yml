@@ -74,6 +74,7 @@ jobs:
   create-vm-from-template:
     runs-on: [self-hosted, linux, initial, rexonix-infra]
     needs: verify-ip-is-not-used
+    if: ${{ !failure() && !cancelled() }}
     container: ghcr.io/opentofu/opentofu:1.9.0
     steps:
       - uses: Anush008/clean-after-action@v4.2.0
@@ -169,6 +170,7 @@ jobs:
   customize-vm-os:
     runs-on: [self-hosted, linux, initial, rexonix-infra]
     needs: create-vm-from-template
+    if: ${{ !failure() && !cancelled() }}
     env:
       GOVC_INSECURE: ${{ secrets.VCENTER_INSECURE_CONNECTION }}
       GOVC_URL: ${{ secrets.VCENTER_HOST }}
@@ -227,7 +229,7 @@ jobs:
   auto-delete-vm:
     runs-on: [self-hosted, linux, initial, rexonix-infra]
     needs: create-vm-from-template
-    if: ${{ github.event.inputs.autoDelete != 0 }}
+    if: ${{ !failure() && !cancelled() && github.event.inputs.autoDelete != 0 }}
     env:
       GOVC_INSECURE: ${{ secrets.VCENTER_INSECURE_CONNECTION }}
       GOVC_URL: ${{ secrets.VCENTER_HOST }}
