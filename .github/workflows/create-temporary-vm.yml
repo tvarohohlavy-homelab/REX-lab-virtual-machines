@@ -36,7 +36,9 @@ on:
         description: 'Automatically delete the VM after a certain time in minutes. Default is 0 - disabled.'
         type: number
         default: 0
-      
+
+run-name: Day2 | Create temporary VM ${{ github.event.inputs.vmName }} [dhcp-${{ github.event.inputs.useDhcp }},ip-${{ github.event.inputs.customIPAddress }}]
+
 env:
   VM_TEMPLATE_NAME: ${{ vars.UBUNTU_22_04_SERVER_X64_VM_TEMPLATE_NAME }}
   VM_NAME: ${{ github.event.inputs.vmName }}
