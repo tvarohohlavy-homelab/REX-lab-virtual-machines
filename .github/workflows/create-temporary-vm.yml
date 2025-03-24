@@ -50,7 +50,7 @@ env:
 jobs:
   verify-ip-is-not-used:
     runs-on: [self-hosted, linux, initial, rexonix-infra]
-    if: ${{ github.event.inputs.useDhcp == false }}
+    if: ${{ github.event.inputs.useDhcp == 'false' }}
     steps:
       - uses: Anush008/clean-after-action@v4.2.0
 
