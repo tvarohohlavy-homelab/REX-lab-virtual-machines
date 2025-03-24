@@ -32,6 +32,10 @@ on:
       customAuthorizedKeys:
         description: 'Custom authorized SSH keys for the VM. Separate multiple with comma. Default is the default authorized keys only.'
         type: string
+      autoDelete:
+        description: 'Automatically delete the VM after a certain time in minutes. Default is 0 - disabled.'
+        type: number
+        default: 0
       
 env:
   VM_TEMPLATE_NAME: ${{ vars.UBUNTU_22_04_SERVER_X64_VM_TEMPLATE_NAME }}
@@ -53,8 +57,6 @@ jobs:
       - uses: Anush008/clean-after-action@v4.2.0
 
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref }}
 
       - name: Set encryption key in main.tf
         uses: tvarohohlavy/inplace-envsubst-action@v1.0.0
@@ -141,3 +143,42 @@ jobs:
           TF_VAR_vmUsername: ${{ secrets.VM_USERNAME }}
           TF_VAR_vmPassword: ${{ secrets.VM_PASSWORD }}
           TF_VAR_authorizedSshKeys: ${{ env.VM_AUTHORIZED_SSH_KEYS }}
+
+  auto-delete-vm:
+    runs-on: [self-hosted, linux, initial, rexonix-infra]
+    needs: create-vm-from-template
+    if: ${{ github.event.inputs.autoDelete != 0 }}
+    env:
+      GOVC_INSECURE: ${{ secrets.VCENTER_INSECURE_CONNECTION }}
+      GOVC_URL: ${{ secrets.VCENTER_HOST }}
+      GOVC_USERNAME: ${{ secrets.VCENTER_USER }}
+      GOVC_PASSWORD: ${{ secrets.VCENTER_PASS }}
+    steps:
+      - uses: Anush008/clean-after-action@v4.2.0
+
+      - uses: actions/checkout@v4
+
+      - name: Wait for VM deletion
+        run: sleep ${{ github.event.inputs.autoDelete }}m
+
+      - name: Install govc
+        run: |
+          if ! command -v govc &> /dev/null
+          then
+              curl -L -o - "https://github.com/vmware/govmomi/releases/latest/download/govc_$(uname -s)_$(uname -m).tar.gz" \
+                   | sudo tar -C /usr/local/bin -xvzf - govc
+          fi
+          govc version
+
+      - name: Delete VM if it exists
+        run: |
+          if govc vm.info ${{ env.VM_NAME }} \
+                          -dc ${{ vars.VCENTER_DATACENTER_NAME }} \
+                          -vm.ipath=/${{ vars.VCENTER_DATACENTER_NAME }}/vm/${{ env.VM_FOLDER }}/${{ env.VM_NAME }}
+          then
+              govc vm.destroy -vm ${{ env.VM_NAME }} \
+                               -dc ${{ vars.VCENTER_DATACENTER_NAME }} \
+                               -vm.ipath=/${{ vars.VCENTER_DATACENTER_NAME }}/vm/${{ env.VM_FOLDER }}/${{ env.VM_NAME }}
+          else
+              echo "VM ${{ env.VM_NAME }} does not already exist."
+          fi
