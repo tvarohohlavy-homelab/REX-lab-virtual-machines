@@ -168,7 +168,7 @@ jobs:
                        -vm.ipath=/${{ vars.VCENTER_DATACENTER_NAME }}/vm/${{ env.VM_FOLDER }}/${{ env.VM_NAME }} \
                        -json=true \
                        ${{ env.VM_NAME }} \
-                       | jq -r ''.virtualMachines[0].guest.ipAddress')
+                       | jq -r '.virtualMachines[0].guest.ipAddress')
           echo "VM_IP_ADDRESS=$VM_IP" >> $GITHUB_ENV
 
       - name: Install Tools on VM
