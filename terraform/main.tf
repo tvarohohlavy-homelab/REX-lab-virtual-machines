@@ -36,7 +36,7 @@ locals {
   templatevars = {
     use_dhcp       = var.useDhcp
     name           = var.vmName
-    ipv4_addresses = var.useDhcp ? [] : jsonencode(var.vmIPAddresses)
+    ipv4_addresses = var.useDhcp ? [] : var.vmIPAddresses
     ipv4_netmask   = var.useDhcp ? "" : var.vmIPNetmask
     ipv4_gateway   = var.useDhcp ? "" : var.vmIPGateway
     domain         = var.vmDomain != "" ? var.vmDomain : ""
