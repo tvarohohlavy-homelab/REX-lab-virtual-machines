@@ -10,9 +10,6 @@ on:
   schedule:
     - cron: "0 */6 * * *"
 
-env:
-  TARGET_REPO: lab-pihole-config
-
 jobs:
   update-pihole-config:
     runs-on: [self-hosted, linux, initial, rexonix-infra]
@@ -21,10 +18,10 @@ jobs:
         include:
           - vm_name: pihole01
             vm_ip_address: ${{ vars.DNS_SERVER_IPV4_LAB_PRIMARY }}
-            files_path: ${{ env.TARGET_REPO }}
+            files_path: ${{ vars.PIHOLE_CONFIG_REPO }}
           - vm_name: pihole02
             vm_ip_address: ${{ vars.DNS_SERVER_IPV4_LAB_SECONDARY }}
-            files_path: ${{ env.TARGET_REPO }}
+            files_path: ${{ vars.PIHOLE_CONFIG_REPO }}
     steps:
       - uses: Anush008/clean-after-action@v4.2.0
 
@@ -32,8 +29,8 @@ jobs:
 
       - uses: actions/checkout@v4
         with:
-          repository: Rexonix-Connect/${{ env.TARGET_REPO }}
-          path: ${{ env.TARGET_REPO }}
+          repository: Rexonix-Connect/${{ vars.PIHOLE_CONFIG_REPO }}
+          path: ${{ vars.PIHOLE_CONFIG_REPO }}
           token: ${{ secrets.PIHOLE_CONFIG_REPO_TOKEN }}
 
       - name: Copy files to VM
