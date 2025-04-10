@@ -6,7 +6,7 @@ on:
     - cron: "0 */12 * * *"
 
 env:
-  TARGET_REPO: ise01-config
+  TARGET_REPO: lab-ise01-config
   SELENIUM_DOWNLOAD_PATH: /tmp
 
 jobs:
