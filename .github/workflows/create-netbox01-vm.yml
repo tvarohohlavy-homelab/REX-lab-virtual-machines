@@ -170,7 +170,8 @@ jobs:
               sudo apt install software-properties-common -y
               sudo add-apt-repository -y ppa:deadsnakes/ppa
               sudo apt update
-              sudo apt install -y python3.12 python3.12-venv python3.12-dev
+              sudo apt install -y python3.12 python3.12-venv python3.12-dev python3-pip
+              sudo apt install -y build-essential libxml2-dev libxslt1-dev libffi-dev libpq-dev libssl-dev zlib1g-dev
             fi
             python3.12 --version
 
