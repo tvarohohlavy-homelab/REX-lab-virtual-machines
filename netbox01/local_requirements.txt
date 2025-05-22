@@ -1,3 +1,2 @@
 netbox-inventory
 netbox-attachments
-netbox-secrets
