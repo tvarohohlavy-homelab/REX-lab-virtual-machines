@@ -221,6 +221,8 @@ jobs:
     steps:
       - uses: Anush008/clean-after-action@v4.2.0
 
+      - uses: actions/checkout@v4
+
       - name: Download Netbox
         uses: appleboy/ssh-action@v1.2.0
         with:
