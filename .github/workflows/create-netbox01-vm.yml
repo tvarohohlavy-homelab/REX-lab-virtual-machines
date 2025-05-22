@@ -134,8 +134,7 @@ jobs:
           token: ${{ secrets.REPO_SECRETS_PAT }}
 
   setup-vm:
-    # if: ${{ !failure() && !cancelled() }}
-    if: false
+    if: ${{ !failure() && !cancelled() }}
     needs: [create-vm-from-template]
     runs-on: [self-hosted, linux, initial, rexonix-infra]
     steps:
@@ -148,8 +147,11 @@ jobs:
           username: ${{ secrets.VM_USERNAME }}
           key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
           script: |
-            # Disable Interactive mode for Service restarts
-            echo "\$nrconf{restart} = 'a';" | sudo tee /etc/needrestart/conf.d/mynrconf.conf
+            # Disable Interactive mode for Service restarts if not yet done
+            if ! grep -q "nrconf{restart} = 'a'" /etc/needrestart/conf.d/mynrconf.conf; then
+              echo "\$nrconf{restart} = 'a';" | sudo tee /etc/needrestart/conf.d/mynrconf.conf
+            fi
+            # Install Tools
             sudo apt update
             sudo apt install -y curl \
                                 inetutils-traceroute \
@@ -159,56 +161,56 @@ jobs:
 
   postgresql-installation:
     if: ${{ !failure() && !cancelled() }}
-    #needs: [setup-vm]
+    needs: [setup-vm]
     runs-on: [self-hosted, linux, initial, rexonix-infra]
     steps:
-        - uses: Anush008/clean-after-action@v4.2.0
+      - uses: Anush008/clean-after-action@v4.2.0
 
-        - name: Install PostgreSQL
-          uses: appleboy/ssh-action@v1.2.0
-          with:
-            host: ${{ env.VM_IP_ADDRESS }}
-            username: ${{ secrets.VM_USERNAME }}
-            key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
-            script: |
-              if ! systemctl is-active --quiet postgresql; then
-                sudo apt update
-                sudo apt install -y postgresql postgresql-contrib
-              fi
-              psql -V
-        
-        - name: Create DB in PostgreSQL
-          uses: appleboy/ssh-action@v1.2.0
-          with:
-            host: ${{ env.VM_IP_ADDRESS }}
-            username: ${{ secrets.VM_USERNAME }}
-            key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
-            script: |
-              set -e
-              sudo -u postgres psql -v ON_ERROR_STOP=1 -c "CREATE USER netbox WITH PASSWORD '${{ secrets.VM_PASSWORD }}';" || true
-              sudo -u postgres psql -v ON_ERROR_STOP=1 -c "CREATE DATABASE netbox OWNER netbox;" || true
-              sudo -u postgres psql -v ON_ERROR_STOP=1 -d netbox -c "GRANT CREATE ON SCHEMA public TO netbox;"
+      - name: Install PostgreSQL
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.VM_IP_ADDRESS }}
+          username: ${{ secrets.VM_USERNAME }}
+          key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
+          script: |
+            if ! systemctl is-active --quiet postgresql; then
+              sudo apt update
+              sudo apt install -y postgresql postgresql-contrib
+            fi
+            psql -V
+      
+      - name: Create DB in PostgreSQL
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.VM_IP_ADDRESS }}
+          username: ${{ secrets.VM_USERNAME }}
+          key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            sudo -u postgres psql -v ON_ERROR_STOP=1 -c "CREATE USER netbox WITH PASSWORD '${{ secrets.VM_PASSWORD }}';" || true
+            sudo -u postgres psql -v ON_ERROR_STOP=1 -c "CREATE DATABASE netbox OWNER netbox;" || true
+            sudo -u postgres psql -v ON_ERROR_STOP=1 -d netbox -c "GRANT CREATE ON SCHEMA public TO netbox;"
 
   redis-installation:
     if: ${{ !failure() && !cancelled() }}
-    #needs: [setup-vm]
+    needs: [setup-vm]
     runs-on: [self-hosted, linux, initial, rexonix-infra]
     steps:
-        - uses: Anush008/clean-after-action@v4.2.0
+      - uses: Anush008/clean-after-action@v4.2.0
 
-        - name: Install Redis
-          uses: appleboy/ssh-action@v1.2.0
-          with:
-            host: ${{ env.VM_IP_ADDRESS }}
-            username: ${{ secrets.VM_USERNAME }}
-            key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
-            script: |
-              if ! systemctl is-active --quiet redis; then
-                sudo apt update
-                sudo apt install -y redis-server
-              fi
-              redis-server -v
-              redis-cli ping
+      - name: Install Redis
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.VM_IP_ADDRESS }}
+          username: ${{ secrets.VM_USERNAME }}
+          key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
+          script: |
+            if ! systemctl is-active --quiet redis; then
+              sudo apt update
+              sudo apt install -y redis-server
+            fi
+            redis-server -v
+            redis-cli ping
 
   netbox-installation:
     if: ${{ !failure() && !cancelled() }}
@@ -217,27 +219,71 @@ jobs:
     env:
       NETBOX_VERSION: 4.3.1
     steps:
-        - uses: Anush008/clean-after-action@v4.2.0
+      - uses: Anush008/clean-after-action@v4.2.0
 
-        - name: Install Netbox
-          uses: appleboy/ssh-action@v1.2.0
-          with:
-            host: ${{ env.VM_IP_ADDRESS }}
-            username: ${{ secrets.VM_USERNAME }}
-            key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
-            script: |
-              sudo wget https://github.com/netbox-community/netbox/archive/refs/tags/v${{ env.NETBOX_VERSION }}.tar.gz
-              sudo tar -xzf v${{ env.NETBOX_VERSION }}.tar.gz -C /opt
-              sudo ln -s /opt/netbox-${{ env.NETBOX_VERSION }}/ /opt/netbox
-        
-        - name: Create System User for Netbox
-          uses: appleboy/ssh-action@v1.2.0
-          with:
-            host: ${{ env.VM_IP_ADDRESS }}
-            username: ${{ secrets.VM_USERNAME }}
-            key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
-            script: |
-              sudo adduser --system --group netbox
-              sudo chown --recursive netbox /opt/netbox/netbox/media/
-              sudo chown --recursive netbox /opt/netbox/netbox/reports/
-              sudo chown --recursive netbox /opt/netbox/netbox/scripts/
+      - name: Download Netbox
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.VM_IP_ADDRESS }}
+          username: ${{ secrets.VM_USERNAME }}
+          key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
+          script: |
+            sudo wget https://github.com/netbox-community/netbox/archive/refs/tags/v${{ env.NETBOX_VERSION }}.tar.gz
+            sudo tar -xzf v${{ env.NETBOX_VERSION }}.tar.gz -C /opt
+            sudo ln -s /opt/netbox-${{ env.NETBOX_VERSION }}/ /opt/netbox
+
+      - name: Set variables in configuration files
+        uses: tvarohohlavy/inplace-envsubst-action@v1.0.0
+        env:
+          ALLOWED_HOSTS: '"${{ env.VM_NAME }}.${{ vars.VM_DOMAIN_NAME_LAB }}", "${{ vars.VM_NETBOX01_IP }}"'
+          NETBOX_DB_USERNAME: netbox
+          NETBOX_DB_PASSWORD: ${{ secrets.VM_PASSWORD }}
+          SECRET_KEY: ${{ secrets.NETBOX_SECRET_KEY }}
+        with:
+          variables: |
+            $ALLOWED_HOSTS
+            $NETBOX_DB_USERNAME
+            $NETBOX_DB_PASSWORD
+            $SECRET_KEY
+          files: |
+            netbox01/configuration.py
+
+      - name: Copy files to VM
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ vars.VM_NETBOX01_IP }}
+          username: ${{ secrets.VM_USERNAME }}
+          key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
+          source: "netbox01/configuration.py"
+          target: "/home/${{ secrets.VM_USERNAME }}"
+          strip_components: 3
+
+      - name: Move configuration file
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.VM_IP_ADDRESS }}
+          username: ${{ secrets.VM_USERNAME }}
+          key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
+          script: |
+            sudo mv /home/${{ secrets.VM_USERNAME }}/configuration.py /opt/netbox/netbox/netbox/
+
+      - name: Create System User for Netbox
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.VM_IP_ADDRESS }}
+          username: ${{ secrets.VM_USERNAME }}
+          key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
+          script: |
+            sudo adduser --system --group netbox
+            sudo chown --recursive netbox /opt/netbox/netbox/media/
+            sudo chown --recursive netbox /opt/netbox/netbox/reports/
+            sudo chown --recursive netbox /opt/netbox/netbox/scripts/
+
+      - name: Install Netbox
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.VM_IP_ADDRESS }}
+          username: ${{ secrets.VM_USERNAME }}
+          key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
+          script: |
+            sudo /opt/netbox/upgrade.sh
