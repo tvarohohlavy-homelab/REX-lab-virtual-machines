@@ -180,16 +180,44 @@ LOGOUT_REDIRECT_URL = 'home'
 METRICS_ENABLED = False
 
 # Enable installed plugins. Add the name of each plugin to the list.
-PLUGINS = []
+PLUGINS = [
+    'netbox_inventory',
+    'netbox_attachments',
+    'netbox_secrets',
+]
 
-# Plugins configuration settings. These settings are used by various plugins that the user may have installed.
-# Each key in the dictionary is the name of an installed plugin and its value is a dictionary of settings.
-# PLUGINS_CONFIG = {
-#     'my_plugin': {
-#         'foo': 'bar',
-#         'buzz': 'bazz'
-#     }
-# }
+PLUGINS_CONFIG = {
+    'netbox_attachments': {
+        'apps': ['netbox_inventory',],
+        'display_setting': {
+            "netbox_inventory.supplier": "left_page",
+            "netbox_inventory.purchase": "full_width_page",
+            "netbox_inventory.delivery": "righ_page",
+            "netbox_inventory.asset": "hidden",
+            "netbox_inventory.inventoryitemtype": "hidden",
+            "netbox_inventory.inventoryitemgroup": "hidden",
+        },
+    },
+    "netbox_inventory": {
+        "top_level_menu": True,
+        "used_status_name": "used",
+        "stored_status_name": "stored",
+        "sync_hardware_serial_asset_tag": True,
+        "asset_import_create_purchase": True,
+        "asset_import_create_device_type": True,
+        "asset_import_create_module_type": True,
+        "asset_import_create_inventoryitem_type": True,
+        "asset_import_create_rack_type": True,
+        "asset_import_create_tenant": True,
+        "asset_warranty_expire_warning_days": 90,
+        "prefill_asset_name_create_inventoryitem": True,
+        "prefill_asset_tag_create_inventoryitem": True,
+    },
+    "netbox_secrets": {
+        "top_level_menu": True,
+        "enable_contacts": True,
+    },
+}
 
 # Remote authentication support
 REMOTE_AUTH_ENABLED = False

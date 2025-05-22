@@ -312,3 +312,86 @@ jobs:
           key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
           script: |
             sudo PYTHON=/usr/bin/python3.12 /opt/netbox/upgrade.sh
+
+      - name: Create Super User Account
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.VM_IP_ADDRESS }}
+          username: ${{ secrets.VM_USERNAME }}
+          key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
+          script: |
+            source /opt/netbox/venv/bin/activate
+            DJANGO_SUPERUSER_PASSWORD=${{ secrets.VM_PASSWORD }} \
+              python3 /opt/netbox/netbox/manage.py \
+                      createsuperuser \
+                      --no-input \
+                      --username netbox \
+                      --email jakub.travnik@rexonix.cz \
+                      || true
+
+      - name: Setup housekeeping jobs
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.VM_IP_ADDRESS }}
+          username: ${{ secrets.VM_USERNAME }}
+          key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
+          script: |
+            sudo ln -s /opt/netbox/contrib/netbox-housekeeping.sh /etc/cron.daily/netbox-housekeeping
+
+      - name: Setup gunicorn, netbox systemd and start services
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.VM_IP_ADDRESS }}
+          username: ${{ secrets.VM_USERNAME }}
+          key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
+          script: |
+            sudo cp /opt/netbox/contrib/gunicorn.py /opt/netbox/gunicorn.py
+            sudo cp -v /opt/netbox/contrib/*.service /etc/systemd/system/
+            sudo systemctl daemon-reload
+            sudo systemctl enable --now netbox netbox-rq
+            systemctl status netbox.service
+
+      - name: Setup and start Nginx
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.VM_IP_ADDRESS }}
+          username: ${{ secrets.VM_USERNAME }}
+          key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
+          script: |
+            if ! systemctl is-active --quiet nginx; then
+              sudo apt install -y nginx
+            fi
+            if [ ! -f "/etc/ssl/certs/netbox.crt" ]; then
+              sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+                -keyout /etc/ssl/private/netbox.key \
+                -out /etc/ssl/certs/netbox.crt \
+                -subj "/C=CZ/L=Prague/O=My Company/CN=${{ env.VM_NAME }}.${{ vars.VM_DOMAIN_NAME_LAB }}"
+            fi
+            sed -i 's/^\(server_name\).*/\1 '"${{ env.VM_NAME }}.${{ vars.VM_DOMAIN_NAME_LAB }}"';/' /opt/netbox/contrib/nginx.conf
+            sudo cp /opt/netbox/contrib/nginx.conf /etc/nginx/sites-available/netbox
+            sudo rm /etc/nginx/sites-enabled/default
+            sudo ln -s /etc/nginx/sites-available/netbox /etc/nginx/sites-enabled/netbox
+            sudo systemctl restart nginx
+
+      - name: Setup Plugins
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.VM_IP_ADDRESS }}
+          username: ${{ secrets.VM_USERNAME }}
+          key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
+          script: |
+            echo "netbox-inventory" > /opt/netbox/local_requirements.txt
+            echo "netbox-attachments" >> /opt/netbox/local_requirements.txt
+            echo "netbox-secrets" >> /opt/netbox/local_requirements.txt
+            #
+            mkdir -p /opt/netbox/netbox/media/netbox-attachments
+            chown netbox /opt/netbox/netbox/media/netbox-attachments
+            #
+            source /opt/netbox/venv/bin/activate
+            pip install -r /opt/netbox/local_requirements.txt
+            #
+            python3.12 /opt/netbox/netbox/manage.py migrate
+            python3.12 /opt/netbox/netbox/manage.py reindex --lazy
+            python3.12 /opt/netbox/netbox/manage.py collectstatic --no-input
+            #
+            sudo systemctl restart netbox netbox-rq
