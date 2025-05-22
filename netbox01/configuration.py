@@ -12,16 +12,14 @@ ALLOWED_HOSTS = [$ALLOWED_HOSTS]
 
 # PostgreSQL database configuration. See the Django documentation for a complete list of available parameters:
 #   https://docs.djangoproject.com/en/stable/ref/settings/#databases
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',  # Database engine
-        'NAME': 'netbox',         # Database name
-        'USER': '$NETBOX_DB_USERNAME',               # PostgreSQL username
-        'PASSWORD': '$NETBOX_DB_PASSWORD',           # PostgreSQL password
-        'HOST': 'localhost',      # Database server
-        'PORT': '',               # Database port (leave blank for default)
-        'CONN_MAX_AGE': 300,      # Max database connection age
-    }
+DATABASE = {
+    'ENGINE': 'django.db.backends.postgresql',  # Database engine
+    'NAME': 'netbox',         # Database name
+    'USER': '$NETBOX_DB_USERNAME',               # PostgreSQL username
+    'PASSWORD': '$NETBOX_DB_PASSWORD',           # PostgreSQL password
+    'HOST': 'localhost',      # Database server
+    'PORT': '',               # Database port (leave blank for default)
+    'CONN_MAX_AGE': 300,      # Max database connection age
 }
 
 # Redis database settings. Redis is used for caching and for queuing background tasks such as webhook events. A separate
