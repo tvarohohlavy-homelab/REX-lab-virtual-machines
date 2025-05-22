@@ -88,3 +88,9 @@ variable "useDhcp" {
   description = "Set true to use DHCP; false for static IP."
   default     = false
 }
+
+variable "vmDiskSizeGB" {
+  description = "The Disk Size in GB for the VM(s)"
+  type        = string
+  default     = "50"
+}

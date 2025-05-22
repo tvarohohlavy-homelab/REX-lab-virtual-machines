@@ -104,6 +104,8 @@ jobs:
           # specific to the VM
           TF_VAR_vmName: ${{ env.VM_NAME }}
           TF_VAR_vmFolder: ${{ env.VM_FOLDER }}
+          # storage
+          TF_VAR_vmDiskSizeGB: "100"
           # network
           TF_VAR_portGroup: ${{ vars.VCENTER_DEFAULT_PORT_GROUP }}
           TF_VAR_vmIPAddresses: "[\"${{ env.VM_IP_ADDRESS }}\"]"

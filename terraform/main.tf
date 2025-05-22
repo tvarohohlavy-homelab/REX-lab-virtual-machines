@@ -76,7 +76,7 @@ resource "vsphere_virtual_machine" "virtual_machine" {
   }
   disk {
     label            = "disk0"
-    size             = "50"
+    size             = var.vmDiskSizeGB
     thin_provisioned = true
   }
   network_interface {
