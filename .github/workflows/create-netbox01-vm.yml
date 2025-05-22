@@ -230,9 +230,11 @@ jobs:
           username: ${{ secrets.VM_USERNAME }}
           key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
           script: |
-            sudo wget https://github.com/netbox-community/netbox/archive/refs/tags/v${{ env.NETBOX_VERSION }}.tar.gz
-            sudo tar -xzf v${{ env.NETBOX_VERSION }}.tar.gz -C /opt
-            sudo ln -s /opt/netbox-${{ env.NETBOX_VERSION }}/ /opt/netbox
+            if [ ! -d "/opt/netbox" ]; then
+              sudo wget https://github.com/netbox-community/netbox/archive/refs/tags/v${{ env.NETBOX_VERSION }}.tar.gz
+              sudo tar -xzf v${{ env.NETBOX_VERSION }}.tar.gz -C /opt
+              sudo ln -s /opt/netbox-${{ env.NETBOX_VERSION }}/ /opt/netbox
+            fi
 
       - name: Set variables in configuration files
         uses: tvarohohlavy/inplace-envsubst-action@v1.0.0
@@ -276,7 +278,12 @@ jobs:
           username: ${{ secrets.VM_USERNAME }}
           key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
           script: |
-            sudo adduser --system --group netbox
+            if id "netbox" &>/dev/null; then
+              echo "User netbox already exists"
+            else
+              echo "Creating user netbox..."
+              sudo adduser --system --group netbox
+            fi
             sudo chown --recursive netbox /opt/netbox/netbox/media/
             sudo chown --recursive netbox /opt/netbox/netbox/reports/
             sudo chown --recursive netbox /opt/netbox/netbox/scripts/
