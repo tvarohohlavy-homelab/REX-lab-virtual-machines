@@ -183,6 +183,7 @@ METRICS_ENABLED = False
 PLUGINS = [
     'netbox_inventory',
     'netbox_attachments',
+    'netbox_secrets',
 ]
 
 PLUGINS_CONFIG = {
@@ -211,6 +212,10 @@ PLUGINS_CONFIG = {
         "asset_warranty_expire_warning_days": 90,
         "prefill_asset_name_create_inventoryitem": True,
         "prefill_asset_tag_create_inventoryitem": True,
+    },
+    "netbox_secrets": {
+        "top_level_menu": True,
+        "enable_contacts": True,
     },
 }
 

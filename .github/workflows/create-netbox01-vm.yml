@@ -233,7 +233,7 @@ jobs:
     needs: [redis-installation, postgresql-installation]
     runs-on: [self-hosted, linux, initial, rexonix-infra]
     env:
-      NETBOX_VERSION: 4.3.1
+      NETBOX_VERSION: 4.2.9
     steps:
       - uses: Anush008/clean-after-action@v4.2.0
 
