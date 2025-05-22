@@ -158,6 +158,21 @@ jobs:
                                 iftop \
                                 btop \
                                 ncdu
+      
+      - name: Install Python3.12
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.VM_IP_ADDRESS }}
+          username: ${{ secrets.VM_USERNAME }}
+          key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
+          script: |
+            if ! python3.12 --version &>/dev/null; then
+              sudo apt install software-properties-common -y
+              sudo add-apt-repository -y ppa:deadsnakes/ppa
+              sudo apt update
+              sudo apt install -y python3.12 python3.12-venv python3.12-dev
+            fi
+            python3.12 --version
 
   postgresql-installation:
     if: ${{ !failure() && !cancelled() }}
@@ -295,4 +310,4 @@ jobs:
           username: ${{ secrets.VM_USERNAME }}
           key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
           script: |
-            sudo /opt/netbox/upgrade.sh
+            sudo PYTHON=/usr/bin/python3.12 /opt/netbox/upgrade.sh
