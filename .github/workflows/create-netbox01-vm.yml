@@ -258,7 +258,7 @@ jobs:
           key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
           source: "netbox01/configuration.py"
           target: "/home/${{ secrets.VM_USERNAME }}"
-          strip_components: 3
+          strip_components: 1
 
       - name: Move configuration file
         uses: appleboy/ssh-action@v1.2.0
