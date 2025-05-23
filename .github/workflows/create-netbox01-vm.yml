@@ -386,8 +386,8 @@ jobs:
             source /opt/netbox/venv/bin/activate
             pip install -r /opt/netbox/local_requirements.txt
             #
-            mkdir -p /opt/netbox/netbox/media/netbox-attachments
-            chown netbox /opt/netbox/netbox/media/netbox-attachments
+            sudo mkdir -p /opt/netbox/netbox/media/netbox-attachments
+            sudo chown netbox /opt/netbox/netbox/media/netbox-attachments
             #
             python3.12 /opt/netbox/netbox/manage.py migrate
             python3.12 /opt/netbox/netbox/manage.py reindex --lazy
