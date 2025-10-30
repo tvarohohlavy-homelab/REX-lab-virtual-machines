@@ -214,7 +214,7 @@ jobs:
     steps:
       - uses: Anush008/clean-after-action@v4.2.0
 
-      - name: Install docker, docker-compose, gh
+      - name: Install docker
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ env.VM_IP_ADDRESS }}
@@ -242,8 +242,13 @@ jobs:
             sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
             sudo usermod -aG docker "$USER"
+            newgrp docker <<EOF
+            EOF
 
             sudo mkdir -p /etc/docker
+            if [ -f /etc/docker/daemon.json ]; then
+              sudo rm /etc/docker/daemon.json
+            fi
             cat <<'JSON' | sudo tee /etc/docker/daemon.json
             {
               "data-root": "/mnt/data/docker",
@@ -255,29 +260,36 @@ jobs:
             JSON
 
             sudo mkdir -p /etc/containerd
+            if [ -f /etc/containerd/config.toml ]; then
+              sudo rm /etc/containerd/config.toml
+            fi
             containerd config default | sudo tee /etc/containerd/config.toml >/dev/null
 
-            # Set these in /etc/containerd/config.toml:
-            #   root  = "/mnt/data/containerd"
-            #   state = "/mnt/data/containerd-state"
             sudo sed -ir 's|^root = .*$|root = "/mnt/data/containerd"|' /etc/containerd/config.toml
             sudo sed -ir 's|^state = .*$|state = "/mnt/data/containerd-state"|' /etc/containerd/config.toml
 
             sudo mkdir -p /etc/systemd/system/docker.service.d
+            if [ -f /etc/systemd/system/docker.service.d/override.conf ]; then
+              sudo rm /etc/systemd/system/docker.service.d/override.conf
+            fi
             cat <<'INI' | sudo tee /etc/systemd/system/docker.service.d/override.conf
             [Unit]
             RequiresMountsFor=/mnt/data
             INI
 
+            if [ -f /etc/systemd/system/docker.service.d/10-tmpdir.conf ]; then
+              sudo rm /etc/systemd/system/docker.service.d/10-tmpdir.conf
+            fi
             cat <<'INI' | sudo tee /etc/systemd/system/docker.service.d/10-tmpdir.conf
             [Service]
             Environment=DOCKER_TMPDIR=/mnt/data/docker-tmp
             Environment=TMPDIR=/mnt/data/tmp
             INI
 
-            sudo systemctl daemon-reload
-
             sudo mkdir -p /etc/systemd/system/containerd.service.d
+            if [ -f /etc/systemd/system/containerd.service.d/override.conf ]; then
+              sudo rm /etc/systemd/system/containerd.service.d/override.conf
+            fi
             cat <<'INI' | sudo tee /etc/systemd/system/containerd.service.d/override.conf
             [Unit]
             RequiresMountsFor=/mnt/data
@@ -289,17 +301,20 @@ jobs:
             sudo systemctl enable --now docker
 
             echo 'export DOCKER_TMPDIR=/mnt/data/docker-tmp
+            if [ -f /etc/profile.d/docker_tmpdir.sh ]; then
+              sudo rm /etc/profile.d/docker_tmpdir.sh
+            fi
             export TMPDIR=/mnt/data/tmp' | sudo tee /etc/profile.d/docker_tmpdir.sh
             sudo mkdir -p /mnt/data/tmp
 
-            docker info | grep -i "Docker Root Dir"
+            sudo docker info | grep -i "Docker Root Dir"
             # Should show: /mnt/data/docker
 
             sudo systemctl status containerd | head -n 3
             # And confirm paths in /etc/containerd/config.toml
 
             # Quick test run
-            docker run --rm hello-world
+            sudo docker run --rm hello-world
 
       - name: Install Containerlab
         uses: appleboy/ssh-action@v1.2.0
