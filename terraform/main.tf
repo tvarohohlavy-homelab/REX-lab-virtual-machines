@@ -94,13 +94,6 @@ resource "vsphere_virtual_machine" "virtual_machine" {
     network_id = data.vsphere_network.network.id
   }
 
-  dynamic "network_interface" {
-    for_each = var.portGroup != "" ? [1] : []
-    content {
-      network_id = data.vsphere_network.network.id
-    }
-  }
-
   clone {
     template_uuid = data.vsphere_content_library_item.item.id
   }
