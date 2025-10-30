@@ -15,7 +15,7 @@ on:
         type: boolean
 
 env:
-  VM_NAME: netbox01
+  VM_NAME: clab01
   VM_FOLDER: ${{ vars.VCENTER_VM_INFRA_FOLDER }}
   VM_IP_ADDRESS: ${{ vars.VM_CLAB01_IP }}
 
@@ -104,9 +104,13 @@ jobs:
           # specific to the VM
           TF_VAR_vmName: ${{ env.VM_NAME }}
           TF_VAR_vmFolder: ${{ env.VM_FOLDER }}
+          # compute
+          TF_VAR_numCPUs: 10
+          TF_VAR_nestedHvEnabled: true
+          TF_VAR_memoryMB: 65536
           # storage
           TF_VAR_vmDiskSizeGB: "50"
-          TF_VAR_vmSecondDiskSizeGB: "600"
+          TF_VAR_vmSecondDiskSizeGB: 600
           # network
           TF_VAR_portGroup: ${{ vars.VCENTER_DEFAULT_PORT_GROUP }}
           TF_VAR_vmIPAddresses: "[\"${{ env.VM_IP_ADDRESS }}\"]"
@@ -158,8 +162,35 @@ jobs:
                                 inetutils-traceroute \
                                 iftop \
                                 btop \
-                                ncdu
-      
+                                ncdu \
+                                git \
+                                make
+
+      - name: Setup secondary disk if present
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.VM_IP_ADDRESS }}
+          username: ${{ secrets.VM_USERNAME }}
+          key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
+          script: |
+            # Check if /dev/sdb exists
+            if [ -b /dev/sdb ]; then
+              # Check if the disk is already formatted
+              if ! lsblk -f | grep -q sdb1; then
+                # Create a single partition on the disk
+                echo -e "o\nn\np\n1\n\n\nw" | sudo fdisk /dev/sdb
+                # Format the partition with ext4 filesystem
+                sudo mkfs.ext4 /dev/sdb1
+              fi
+              # Create a mount point and mount the disk
+              sudo mkdir -p /mnt/data
+              sudo mount /dev/sdb1 /mnt/data
+              # Add to fstab for automatic mounting on boot
+              if ! grep -q '/dev/sdb1' /etc/fstab; then
+                echo '/dev/sdb1 /mnt/data ext4 defaults 0 2' | sudo tee -a /etc/fstab
+              fi
+            fi
+
       - name: Install Python3.12
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -176,3 +207,127 @@ jobs:
             fi
             python3.12 --version
 
+  setup-containerlabs:
+    if: ${{ !failure() && !cancelled() }}
+    needs: [create-vm-from-template, setup-vm]
+    runs-on: [self-hosted, linux, initial, rexonix-infra]
+    steps:
+      - uses: Anush008/clean-after-action@v4.2.0
+
+      - name: Install docker, docker-compose, gh
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.VM_IP_ADDRESS }}
+          username: ${{ secrets.VM_USERNAME }}
+          key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
+          script: |
+            sudo mkdir -p /mnt/data/docker /mnt/data/containerd /mnt/data/docker-tmp
+            sudo chown root:root /mnt/data
+            sudo chmod 755 /mnt/data
+
+            sudo apt-get update
+            sudo apt-get install -y ca-certificates curl gnupg lsb-release
+
+            sudo install -m 0755 -d /etc/apt/keyrings
+            curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor \
+              -o /etc/apt/keyrings/docker.gpg
+            sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+            echo \
+              "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+              https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) stable" \
+              | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+            sudo apt-get update
+            sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+            sudo usermod -aG docker "$USER"
+
+            sudo mkdir -p /etc/docker
+            cat <<'JSON' | sudo tee /etc/docker/daemon.json
+            {
+              "data-root": "/mnt/data/docker",
+              "exec-opts": ["native.cgroupdriver=systemd"],
+              "log-driver": "json-file",
+              "log-opts": { "max-size": "10m", "max-file": "3" },
+              "storage-driver": "overlay2"
+            }
+            JSON
+
+            sudo mkdir -p /etc/containerd
+            containerd config default | sudo tee /etc/containerd/config.toml >/dev/null
+
+            # Set these in /etc/containerd/config.toml:
+            #   root  = "/mnt/data/containerd"
+            #   state = "/mnt/data/containerd-state"
+            sudo sed -ir 's|^root = .*$|root = "/mnt/data/containerd"|' /etc/containerd/config.toml
+            sudo sed -ir 's|^state = .*$|state = "/mnt/data/containerd-state"|' /etc/containerd/config.toml
+
+            sudo mkdir -p /etc/systemd/system/docker.service.d
+            cat <<'INI' | sudo tee /etc/systemd/system/docker.service.d/override.conf
+            [Unit]
+            RequiresMountsFor=/mnt/data
+            INI
+
+            cat <<'INI' | sudo tee /etc/systemd/system/docker.service.d/10-tmpdir.conf
+            [Service]
+            Environment=DOCKER_TMPDIR=/mnt/data/docker-tmp
+            Environment=TMPDIR=/mnt/data/tmp
+            INI
+
+            sudo systemctl daemon-reload
+
+            sudo mkdir -p /etc/systemd/system/containerd.service.d
+            cat <<'INI' | sudo tee /etc/systemd/system/containerd.service.d/override.conf
+            [Unit]
+            RequiresMountsFor=/mnt/data
+            INI
+
+            sudo systemctl daemon-reload
+
+            sudo systemctl enable --now containerd
+            sudo systemctl enable --now docker
+
+            echo 'export DOCKER_TMPDIR=/mnt/data/docker-tmp
+            export TMPDIR=/mnt/data/tmp' | sudo tee /etc/profile.d/docker_tmpdir.sh
+            sudo mkdir -p /mnt/data/tmp
+
+            docker info | grep -i "Docker Root Dir"
+            # Should show: /mnt/data/docker
+
+            sudo systemctl status containerd | head -n 3
+            # And confirm paths in /etc/containerd/config.toml
+
+            # Quick test run
+            docker run --rm hello-world
+
+      - name: Install Containerlab
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.VM_IP_ADDRESS }}
+          username: ${{ secrets.VM_USERNAME }}
+          key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
+          script: |
+            sudo mkdir -p \
+              /mnt/data/containerlab \
+              /mnt/data/vrnetlab/{repos,images,tmp}
+            sudo chown -R root:root /mnt/data
+            
+            # CONTAINERLAB setup
+            cd /tmp
+            curl -LO https://github.com/srl-labs/containerlab/releases/download/v0.71.0/containerlab_0.71.0_linux_amd64.deb
+            sudo dpkg -i containerlab_0.71.0_linux_amd64.deb
+            containerlab version
+            echo 'export CLAB_LABDIR_BASE=/mnt/data/containerlab' | sudo tee /etc/profile.d/containerlab.sh
+
+            sudo mkdir -p /etc/systemd/system/containerlab@.service.d
+            cat <<'INI' | sudo tee /etc/systemd/system/containerlab@.service.d/override.conf
+            [Service]
+            Environment=CLAB_LABDIR_BASE=/mnt/data/containerlab
+            Environment=DOCKER_TMPDIR=/mnt/data/docker-tmp
+            Environment=TMPDIR=/mnt/data/tmp
+            INI
+
+            # VRNETLAB setup
+            sudo git clone https://github.com/vrnetlab/vrnetlab.git /mnt/data/vrnetlab/repos/vrnetlab
+            sudo chown -R "$USER":"$USER" /mnt/data/vrnetlab/repos/vrnetlab
