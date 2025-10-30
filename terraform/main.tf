@@ -53,12 +53,13 @@ resource "tls_private_key" "temp_ssh_keypair" {
 }
 
 resource "vsphere_virtual_machine" "virtual_machine" {
-  name             = var.vmName
-  datastore_id     = data.vsphere_datastore.datastore.id
-  resource_pool_id = data.vsphere_compute_cluster.cluster[0].resource_pool_id
-  num_cpus         = 2
-  memory           = 4096
-  folder           = "${var.vmFolder}"
+  name              = var.vmName
+  datastore_id      = data.vsphere_datastore.datastore.id
+  resource_pool_id  = data.vsphere_compute_cluster.cluster[0].resource_pool_id
+  num_cpus          = var.numCPUs
+  nested_hv_enabled = var.nestedHvEnabled
+  memory            = var.memoryMB
+  folder            = "${var.vmFolder}"
   connection {
     type        = "ssh"
     host        = self.guest_ip_addresses[0]

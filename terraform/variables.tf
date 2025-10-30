@@ -89,6 +89,24 @@ variable "useDhcp" {
   default     = false
 }
 
+variable "numCPUs" {
+  description = "The number of CPUs for the VM(s)"
+  type        = number
+  default     = 2 
+}
+
+variable "nestedHvEnabled" {
+  description = "Enable Nested Hypervisor support for the VM(s)"
+  type        = bool
+  default     = false
+}
+
+variable "memoryMB" {
+  description = "The amount of memory in MB for the VM(s)"
+  type        = number
+  default     = 4096
+}
+
 variable "vmDiskSizeGB" {
   description = "The Disk Size in GB for the VM(s)"
   type        = string
