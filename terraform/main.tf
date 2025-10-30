@@ -76,6 +76,7 @@ resource "vsphere_virtual_machine" "virtual_machine" {
   }
   disk {
     label            = "disk0"
+    unit_number      = 0
     size             = var.vmDiskSizeGB
     thin_provisioned = true
   }
@@ -84,6 +85,7 @@ resource "vsphere_virtual_machine" "virtual_machine" {
     for_each = var.vmSecondDiskSizeGB > 0 ? [1] : []
     content {
       label            = "disk1"
+      unit_number      = 1
       size             = var.vmSecondDiskSizeGB
       thin_provisioned = true
     }
