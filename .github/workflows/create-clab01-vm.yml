@@ -96,8 +96,8 @@ jobs:
           TF_VAR_vCenterPassword: ${{ secrets.VCENTER_PASS }}
           TF_VAR_vCenterInsecureConnection: ${{ secrets.VCENTER_INSECURE_CONNECTION }}
           TF_VAR_vCenterDatacenterName: ${{ vars.VCENTER_DATACENTER_NAME }}
-          TF_VAR_clusterName: ${{ vars.VCENTER_CLUSTER_NAME }}
-          TF_VAR_datastoreName: ${{ vars.VCENTER_DATASTORE_NAME }}
+          TF_VAR_clusterName: "cluster02"
+          TF_VAR_datastoreName: "esxi05Datastore"
           # ubuntu 22.04 server x64
           TF_VAR_templateName: ${{ vars.UBUNTU_22_04_SERVER_X64_VM_TEMPLATE_NAME }}
           TF_VAR_libraryName: ${{ vars.VCENTER_PACKER_CONTENT_LIBRARY_NAME }}
@@ -312,7 +312,7 @@ jobs:
               /mnt/data/containerlab \
               /mnt/data/vrnetlab/{repos,images,tmp}
             sudo chown -R root:root /mnt/data
-            
+
             # CONTAINERLAB setup
             cd /tmp
             curl -LO https://github.com/srl-labs/containerlab/releases/download/v0.71.0/containerlab_0.71.0_linux_amd64.deb
