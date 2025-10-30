@@ -94,3 +94,9 @@ variable "vmDiskSizeGB" {
   type        = string
   default     = "50"
 }
+
+variable "vmSecondDiskSizeGB" {
+  description = "The Second Disk Size in GB for the VM(s). Set to 0 to disable second disk."
+  type        = number
+  default     = 0
+}
