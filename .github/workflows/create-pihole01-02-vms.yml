@@ -259,7 +259,11 @@ jobs:
             # Install or Restart Pihole
             if [ ! -f /usr/local/bin/pihole ]; then
               echo "Pihole is not installed. Installing Pihole..."
-            	curl -sSL https://install.pi-hole.net | sudo bash /dev/stdin --unattended
+              git clone --depth 1 --branch v5.18.4 https://github.com/pi-hole/pi-hole.git PIHOLE_INSTALLER
+              cd "PIHOLE_INSTALLER/automated install/"
+              sudo bash basic-install.sh --unattended
+              cd ../..
+            	# curl -sSL https://install.pi-hole.net | sudo bash /dev/stdin --unattended
             else
               echo "Pihole is already installed. Restarting Pihole..."
               sudo pihole restartdns
