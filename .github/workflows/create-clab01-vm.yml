@@ -1,4 +1,4 @@
-name: Day0 | Create clab01 VM
+name: Day0 | Create clab VMs
 
 on:
   workflow_dispatch:
@@ -15,9 +15,8 @@ on:
         type: boolean
 
 env:
-  VM_NAME: clab01
   VM_FOLDER: ${{ vars.VCENTER_VM_INFRA_FOLDER }}
-  VM_IP_ADDRESS: ${{ vars.VM_CLAB01_IP }}
+
 
 jobs:
   create-opentofu-providers-mirror:
@@ -51,6 +50,16 @@ jobs:
     needs: [create-opentofu-providers-mirror]
     runs-on: [self-hosted, linux, initial, rexonix-infra]
     container: ghcr.io/opentofu/opentofu:1.9.0
+    strategy:
+      max-parallel: 3
+      matrix: &vm-matrix
+        include:
+          # - vm_name: clab01
+          #   vm_ip_address: ${{ vars.VM_CLAB01_IP }}
+          - vm_name: clab02
+            vm_ip_address: ${{ vars.VM_CLAB02_IP }}
+          - vm_name: clab03
+            vm_ip_address: ${{ vars.VM_CLAB03_IP }}
     steps:
       - uses: Anush008/clean-after-action@v4.2.0
 
@@ -61,7 +70,7 @@ jobs:
       - name: Set encryption key in main.tf
         uses: tvarohohlavy/inplace-envsubst-action@v1.0.0
         env:
-          STATEFILE_PATH:  "${{ env.VM_NAME }}-terraform.tfstate"
+          STATEFILE_PATH:  "${{ matrix.vm_name }}-terraform.tfstate"
           TF_ENCRYPTION_KEY: ${{ secrets.TF_ENCRYPTION_PASSWORD }}
         with:
           variables: |
@@ -72,9 +81,9 @@ jobs:
 
       - name: Save statefile from secret to file
         env:
-          STATEFILE: ${{ secrets[format('{0}_TF_STATEFILE', env.VM_NAME)] }}
+          STATEFILE: ${{ secrets[format('{0}_TF_STATEFILE', matrix.vm_name)] }}
         if: env.STATEFILE && env.STATEFILE != 'empty'
-        run: echo '${{ env.STATEFILE }}' > terraform/${{ env.VM_NAME }}-terraform.tfstate
+        run: echo '${{ env.STATEFILE }}' > terraform/${{ matrix.vm_name }}-terraform.tfstate
 
       - name: Create VM from template with OpenTofu
         id: create-vm
@@ -102,7 +111,7 @@ jobs:
           TF_VAR_templateName: ${{ vars.UBUNTU_22_04_SERVER_X64_VM_TEMPLATE_NAME }}
           TF_VAR_libraryName: ${{ vars.VCENTER_PACKER_CONTENT_LIBRARY_NAME }}
           # specific to the VM
-          TF_VAR_vmName: ${{ env.VM_NAME }}
+          TF_VAR_vmName: ${{ matrix.vm_name }}
           TF_VAR_vmFolder: ${{ env.VM_FOLDER }}
           # compute
           TF_VAR_numCPUs: 10
@@ -113,7 +122,7 @@ jobs:
           TF_VAR_vmSecondDiskSizeGB: 600
           # network
           TF_VAR_portGroup: ${{ vars.VCENTER_DEFAULT_PORT_GROUP }}
-          TF_VAR_vmIPAddresses: "[\"${{ env.VM_IP_ADDRESS }}\"]"
+          TF_VAR_vmIPAddresses: "[\"${{ matrix.vm_ip_address }}\"]"
           TF_VAR_vmIPNetmask: ${{ vars.VCENTER_DEFAULT_PORT_GROUP_NETMASK }}
           TF_VAR_vmIPGateway: ${{ vars.VCENTER_DEFAULT_PORT_GROUP_GATEWAY }}
           TF_VAR_dnsServerList: "[\"${{ vars.DNS_SERVER_IPV4_LAB_VIP }}\"]"
@@ -126,7 +135,7 @@ jobs:
       - name: Read statefile
         id: read-statefile
         run: |
-          statefile=$(cat terraform/${{ env.VM_NAME }}-terraform.tfstate)
+          statefile=$(cat terraform/${{ matrix.vm_name }}-terraform.tfstate)
           echo "::add-mask::$statefile"
           echo "statefile=$statefile" >> $GITHUB_OUTPUT
   
@@ -134,7 +143,7 @@ jobs:
         if: ${{ ! contains(steps.create-vm.outputs.TFPLAN, 'found no differences, so no changes are needed') }}  
         uses: action-pack/set-secret@v1
         with:
-          name: '${{ env.VM_NAME }}_TF_STATEFILE'
+          name: '${{ matrix.vm_name }}_TF_STATEFILE'
           value: ${{ steps.read-statefile.outputs.statefile }}
           token: ${{ secrets.REPO_SECRETS_PAT }}
 
@@ -142,13 +151,16 @@ jobs:
     if: ${{ !failure() && !cancelled() }}
     needs: [create-vm-from-template]
     runs-on: [self-hosted, linux, initial, rexonix-infra]
+    strategy:
+      max-parallel: 3
+      matrix: *vm-matrix
     steps:
       - uses: Anush008/clean-after-action@v4.2.0
 
       - name: Install Tools
         uses: appleboy/ssh-action@v1.2.0
         with:
-          host: ${{ env.VM_IP_ADDRESS }}
+          host: ${{ matrix.vm_ip_address }}
           username: ${{ secrets.VM_USERNAME }}
           key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
           script: |
@@ -164,12 +176,21 @@ jobs:
                                 btop \
                                 ncdu \
                                 git \
-                                make
+                                gh \
+                                make \
+                                jq \
+                                net-tools \
+                                gh
+            # Install ctop
+            curl https://azlux.fr/repo.gpg | sudo apt-key add -
+            sudo apt-add-repository deb http://packages.azlux.fr/debian stable main
+            sudo apt install -y docker-ctop
+
 
       - name: Setup secondary disk if present
         uses: appleboy/ssh-action@v1.2.0
         with:
-          host: ${{ env.VM_IP_ADDRESS }}
+          host: ${{ matrix.vm_ip_address }}
           username: ${{ secrets.VM_USERNAME }}
           key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
           script: |
@@ -194,7 +215,7 @@ jobs:
       - name: Install Python3.12
         uses: appleboy/ssh-action@v1.2.0
         with:
-          host: ${{ env.VM_IP_ADDRESS }}
+          host: ${{ matrix.vm_ip_address }}
           username: ${{ secrets.VM_USERNAME }}
           key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
           script: |
@@ -207,23 +228,68 @@ jobs:
             fi
             python3.12 --version
 
+      - name: Install Golang
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ matrix.vm_ip_address }}
+          username: ${{ secrets.VM_USERNAME }}
+          key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
+          script: |
+            if ! go version &>/dev/null; then
+              sudo add-apt-repository ppa:longsleep/golang-backports
+              sudo apt update
+              sudo apt install -y golang-go=2:1.25~0longsleep1
+            fi
+            go version
+
   setup-containerlabs:
     if: ${{ !failure() && !cancelled() }}
     needs: [create-vm-from-template, setup-vm]
     runs-on: [self-hosted, linux, initial, rexonix-infra]
+    strategy:
+      max-parallel: 3
+      matrix: *vm-matrix
     steps:
       - uses: Anush008/clean-after-action@v4.2.0
+
+      - name: Setup directories
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ matrix.vm_ip_address }}
+          username: ${{ secrets.VM_USERNAME }}
+          key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
+          script: |
+            sudo mkdir -p /mnt/data/docker \
+                          /mnt/data/docker-tmp \
+                          /mnt/data/tmp \
+                          /mnt/data/containerd \
+                          /mnt/data/containerd-state \
+                          /mnt/data/CONTAINERLAB \
+                          /mnt/data/CLAB-IMAGES/docker_images \
+                          /mnt/data/CLAB-IMAGES/generic_vms \
+                          /mnt/data/GITHUB \
+                          /mnt/data/LABS
+            sudo chown -R root:root /mnt/data
+            sudo chmod 755 /mnt/data
+            sudo chown -R netops:netops /mnt/data/CONTAINERLAB
+            sudo chown -R netops:netops /mnt/data/CLAB-IMAGES
+            sudo chown -R netops:netops /mnt/data/GITHUB
+            sudo chown -R netops:netops /mnt/data/LABS
+            sudo chown -R netops:netops /mnt/data/CONTAINERLAB
+            sudo chmod 755 /mnt/data/CLAB-IMAGES
+            sudo chmod 755 /mnt/data/GITHUB
+            sudo chmod 755 /mnt/data/LABS
 
       - name: Install docker
         uses: appleboy/ssh-action@v1.2.0
         with:
-          host: ${{ env.VM_IP_ADDRESS }}
+          host: ${{ matrix.vm_ip_address }}
           username: ${{ secrets.VM_USERNAME }}
           key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
           script: |
-            sudo mkdir -p /mnt/data/docker /mnt/data/containerd /mnt/data/docker-tmp
-            sudo chown root:root /mnt/data
-            sudo chmod 755 /mnt/data
+            # sudo mkdir -p /mnt/data/docker /mnt/data/containerd /mnt/data/docker-tmp
+            # sudo chown root:root /mnt/data
+            # sudo chmod 755 /mnt/data
 
             sudo apt-get update
             sudo apt-get install -y ca-certificates curl gnupg lsb-release
@@ -307,6 +373,8 @@ jobs:
             export TMPDIR=/mnt/data/tmp' | sudo tee /etc/profile.d/docker_tmpdir.sh
             sudo mkdir -p /mnt/data/tmp
 
+            sudo systemctl restart docker containerd
+
             sudo docker info | grep -i "Docker Root Dir"
             # Should show: /mnt/data/docker
 
@@ -319,30 +387,22 @@ jobs:
       - name: Install Containerlab
         uses: appleboy/ssh-action@v1.2.0
         with:
-          host: ${{ env.VM_IP_ADDRESS }}
+          host: ${{ matrix.vm_ip_address }}
           username: ${{ secrets.VM_USERNAME }}
           key: ${{ secrets.RUNNER01_SSH_PRIVATE_KEY }}
           script: |
-            sudo mkdir -p \
-              /mnt/data/containerlab \
-              /mnt/data/vrnetlab/{repos,images,tmp}
-            sudo chown -R root:root /mnt/data
-
             # CONTAINERLAB setup
             cd /tmp
             curl -LO https://github.com/srl-labs/containerlab/releases/download/v0.71.0/containerlab_0.71.0_linux_amd64.deb
             sudo dpkg -i containerlab_0.71.0_linux_amd64.deb
             containerlab version
-            echo 'export CLAB_LABDIR_BASE=/mnt/data/containerlab' | sudo tee /etc/profile.d/containerlab.sh
+            echo 'export CLAB_LABDIR_BASE=/mnt/data/CONTAINERLAB' | sudo tee /etc/profile.d/containerlab.sh
 
             sudo mkdir -p /etc/systemd/system/containerlab@.service.d
             cat <<'INI' | sudo tee /etc/systemd/system/containerlab@.service.d/override.conf
             [Service]
-            Environment=CLAB_LABDIR_BASE=/mnt/data/containerlab
+            Environment=CLAB_LABDIR_BASE=/mnt/data/CONTAINERLAB
             Environment=DOCKER_TMPDIR=/mnt/data/docker-tmp
             Environment=TMPDIR=/mnt/data/tmp
             INI
-
-            # VRNETLAB setup
-            sudo git clone https://github.com/vrnetlab/vrnetlab.git /mnt/data/vrnetlab/repos/vrnetlab
-            sudo chown -R "$USER":"$USER" /mnt/data/vrnetlab/repos/vrnetlab
+            
